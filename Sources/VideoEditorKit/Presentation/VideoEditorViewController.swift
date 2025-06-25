@@ -345,6 +345,8 @@ fileprivate extension VideoEditorViewController {
     }
 
     func presentVideoControlController(for videoControl: VideoControl) {
+        navigationItem.rightBarButtonItems = []
+        navigationItem.leftBarButtonItems = []
         if videoControlViewController.view.superview == nil {
             let height: CGFloat = 210.0
             let offset = -(height + view.safeAreaInsets.bottom)
@@ -375,6 +377,9 @@ fileprivate extension VideoEditorViewController {
     func animateVideoControlViewControllerOut() {
         UIView.animate(withDuration: 0.3, delay: 0.0, usingSpringWithDamping: 1.0, initialSpringVelocity: 0, options: .curveEaseInOut, animations: {
             self.videoControlViewController.view.transform = .identity
+        }, completion: { _ in
+            // Show navigation bar buttons again after dismiss
+            self.setupNavigationItems()
         })
     }
 }
