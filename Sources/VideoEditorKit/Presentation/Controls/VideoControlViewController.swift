@@ -1,6 +1,6 @@
 //
 //  ModalVideoControlViewController.swift
-//  
+//
 //
 //  Created by Titouan Van Belle on 29.10.20.
 //
@@ -28,6 +28,7 @@ final class VideoControlViewController: UIViewController {
     private lazy var titleImageView: UIImageView = makeTitleImageView()
     private lazy var titleLabel: UILabel = makeTitleLabel()
     private lazy var dismissButton: UIButton = makeDismissButton()
+    private lazy var closeButton: UIButton = makeCloseButton()
 
     private lazy var speedVideoControlViewController: SpeedVideoControlViewController = makeSpeedVideoControlViewController()
     private lazy var trimVideoControlViewController: TrimVideoControlViewController = makeTrimVideoControlViewController()
@@ -40,13 +41,23 @@ final class VideoControlViewController: UIViewController {
 
     private let asset: AVAsset
     private let viewFactory: VideoEditorViewFactoryProtocol
+    
+    // Lưu lại giá trị croppingPreset khi khởi tạo
+    private var initialCroppingPreset: CroppingPreset?
+    private var initialSpeed: Double
+    private var initialTrimPositions: (Double, Double)
 
     // MARK: Init
 
-    init(asset: AVAsset, speed: Double, trimPositions: (Double, Double), viewFactory: VideoEditorViewFactoryProtocol) {
+    init(asset: AVAsset, speed: Double, trimPositions: (Double, Double), croppingPreset: CroppingPreset?, viewFactory: VideoEditorViewFactoryProtocol) {
         self.asset = asset
         self.speed = speed
         self.trimPositions = trimPositions
+        self.croppingPreset = croppingPreset
+        
+        self.initialCroppingPreset = croppingPreset
+        self.initialSpeed = speed
+        self.initialTrimPositions = trimPositions
         self.viewFactory = viewFactory
 
         super.init(nibName: nil, bundle: nil)
@@ -74,7 +85,8 @@ fileprivate extension VideoControlViewController {
             .assign(to: \.trimPositions, weakly: self)
             .store(in: &cancellables)
 
-        cropVideoControlViewController.didSelectCroppingPreset
+        cropVideoControlViewController.$croppingPreset
+            .dropFirst(1)
             .assign(to: \.croppingPreset, weakly: self)
             .store(in: &cancellables)
     }
@@ -84,6 +96,11 @@ extension VideoControlViewController {
     func configure(with viewModel: VideoControlViewModel) {
         titleLabel.text = viewModel.title
         titleImageView.image = UIImage(named: viewModel.titleImageName, in: .module, compatibleWith: nil)
+
+        // Cập nhật lại giá trị cho các VC con khi configure
+        speedVideoControlViewController.speed = speed
+        trimVideoControlViewController.trimPositions = trimPositions
+        cropVideoControlViewController.selectedPreset = croppingPreset
 
         currentVideoControlViewController?.remove()
 
@@ -95,7 +112,7 @@ extension VideoControlViewController {
         videoControlViewController.view.autoPinEdge(toSuperviewEdge: .left)
         videoControlViewController.view.autoPinEdge(toSuperviewEdge: .right)
         videoControlViewController.view.autoPinEdge(.bottom, to: .top, of: dismissButton)
-
+        
         self.currentVideoControlViewController = videoControlViewController
     }
 }
@@ -112,6 +129,7 @@ fileprivate extension VideoControlViewController {
         view.addSubview(borderTop)
         view.addSubview(titleStack)
         view.addSubview(dismissButton)
+        view.addSubview(closeButton)
 
         view.backgroundColor = .white
     }
@@ -131,6 +149,9 @@ fileprivate extension VideoControlViewController {
 
         dismissButton.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: 10.0)
         dismissButton.autoPinEdge(toSuperviewEdge: .right, withInset: 30.0)
+        closeButton.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: 10.0)
+        closeButton.autoPinEdge(toSuperviewEdge: .left, withInset: 30.0)
+
     }
 
     func makeBorderTop() -> UIView {
@@ -198,6 +219,16 @@ fileprivate extension VideoControlViewController {
         button.addTarget(self, action: #selector(cancel), for: .touchUpInside)
         return button
     }
+    
+    func makeCloseButton() -> UIButton {
+        let button = UIButton()
+        let image = UIImage(named: "Close", in: .module, compatibleWith: nil)
+        button.setImage(image, for: .normal)
+        button.tintColor = #colorLiteral(red: 0.1137254902, green: 0.1137254902, blue: 0.1215686275, alpha: 1)
+        button.addTarget(self, action: #selector(close), for: .touchUpInside)
+        return button
+    }
+
 }
 
 // MARK: Actions
@@ -206,5 +237,9 @@ fileprivate extension VideoControlViewController {
     @objc func cancel() {
         onDismiss.send()
     }
+    
+    @objc func close() {
+        //Revert changes made in the control view
+        onDismiss.send()
+    }
 }
-

@@ -21,7 +21,7 @@ final class CropVideoControlViewController: UIViewController {
 
     // MARK: Public Properties
 
-    var didSelectCroppingPreset = PassthroughSubject<CroppingPreset?, Never>()
+    @Published var croppingPreset: CroppingPreset?
 
     override var tabBarItem: UITabBarItem! {
         get {
@@ -39,10 +39,12 @@ final class CropVideoControlViewController: UIViewController {
     private lazy var collectionView: UICollectionView = makeCollectionView()
 
     private var datasource: Datasource!
+    private var cancellables = Set<AnyCancellable>()
 
     // MARK: Init
 
-    init() {        
+    init(croppingPreset: CroppingPreset? = nil) {
+        self.croppingPreset = croppingPreset
         super.init(nibName: nil, bundle: nil)
     }
     
@@ -56,8 +58,8 @@ final class CropVideoControlViewController: UIViewController {
         super.viewDidLoad()
 
         setupUI()
-
         loadPresets()
+        setupBindings()
     }
 }
 
@@ -65,13 +67,34 @@ final class CropVideoControlViewController: UIViewController {
 
 fileprivate extension CropVideoControlViewController {
     func loadPresets() {
-        let viewModels = CroppingPreset.allCases.map(CroppingPresetCellViewModel.init)
+        let viewModels = CroppingPreset.allCases.map { preset in
+            CroppingPresetCellViewModel(
+                croppingPreset: preset,
+                isSelected: croppingPreset == preset
+            )
+        }
         var snapshot = NSDiffableDataSourceSnapshot<Section, CroppingPresetCellViewModel>()
         snapshot.appendSections([.main])
         snapshot.appendItems(viewModels, toSection: .main)
         datasource.apply(snapshot, animatingDifferences: true)
     }
 }
+
+// MARK: Bindings
+
+fileprivate extension CropVideoControlViewController {
+    func setupBindings() {
+        // Bind croppingPreset changes để reload data với selection state mới
+        $croppingPreset
+            .dropFirst(1) // Bỏ qua giá trị initial để tránh reload không cần thiết
+            .sink { [weak self] _ in
+                self?.loadPresets() // Chỉ cần reload data, UI sẽ tự update
+            }
+            .store(in: &cancellables)
+    }
+}
+
+// MARK: UI
 
 fileprivate extension CropVideoControlViewController {
     func setupUI() {
@@ -134,31 +157,21 @@ extension CropVideoControlViewController: UICollectionViewDelegateFlowLayout {
         CGSize(width: 90, height: 100)
     }
 
-    func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
-        guard let cell = collectionView.cellForItem(at: indexPath) as? CroppingPresetCell else {
-            return false
-        }
-
-        if cell.isSelected {
-            collectionView.deselectItem(at: indexPath, animated: false)
-            didSelectCroppingPreset.send(nil)
-            return false
-        } else {
-            return true
-        }
-    }
-
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        guard let cell = collectionView.cellForItem(at: indexPath) as? CroppingPresetCell else {
-            return
-        }
-
         guard let viewModel = datasource.itemIdentifier(for: indexPath) else {
             return
         }
 
-        if cell.isSelected {
-            didSelectCroppingPreset.send(viewModel.croppingPreset)
+        // Toggle logic dựa trên data thay vì UI state
+        if viewModel.croppingPreset == croppingPreset {
+            // Deselect - bỏ chọn preset hiện tại
+            croppingPreset = nil
+        } else {
+            // Select - chọn preset mới
+            croppingPreset = viewModel.croppingPreset
         }
+        
+        // Deselect trong collection view để tránh conflict với built-in selection
+        collectionView.deselectItem(at: indexPath, animated: false)
     }
 }

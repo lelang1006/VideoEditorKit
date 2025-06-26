@@ -13,11 +13,13 @@ final class CroppingPresetCellViewModel: NSObject {
     // MARK: Public Properties
 
     let croppingPreset: CroppingPreset
+    let isSelected: Bool
 
     // MARK: Init
 
-    init(croppingPreset: CroppingPreset) {
+    init(croppingPreset: CroppingPreset, isSelected: Bool = false) {
         self.croppingPreset = croppingPreset
+        self.isSelected = isSelected
     }
 
     // MARK: Public Properties

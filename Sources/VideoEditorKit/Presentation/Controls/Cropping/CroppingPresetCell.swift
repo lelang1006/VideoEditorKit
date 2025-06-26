@@ -12,7 +12,7 @@ final class CroppingPresetCell: UICollectionViewCell {
 
     // MARK: Public Properties
 
-    override var isSelected: Bool {
+    var isChoosed: Bool = false {
         didSet {
             updateUI()
         }
@@ -45,6 +45,9 @@ extension CroppingPresetCell {
     func configure(with viewModel: CroppingPresetCellViewModel) {
         title.text = viewModel.name
         imageView.image = UIImage(named: viewModel.imageName, in: .module, compatibleWith: nil)
+        
+        // Set isChoosed từ viewModel
+        isChoosed = viewModel.isSelected
 
         self.viewModel = viewModel
     }
@@ -70,8 +73,8 @@ fileprivate extension CroppingPresetCell {
     }
 
     func updateUI() {
-        title.font = isSelected ? .systemFont(ofSize: 12.0, weight: .medium) : .systemFont(ofSize: 12.0)
-        imageView.tintColor = isSelected ? .croppingPresetSelected : .croppingPreset
+        title.font = isChoosed ? .systemFont(ofSize: 12.0, weight: .medium) : .systemFont(ofSize: 12.0)
+        imageView.tintColor = isChoosed ? .croppingPresetSelected : .croppingPreset
     }
 
     func makeTitle() -> UILabel {

@@ -15,9 +15,10 @@ protocol VideoEditorViewFactoryProtocol {
     func makeVideoControlViewController(
         asset: AVAsset,
         speed: Double,
-        trimPositions: (Double, Double)
+        trimPositions: (Double, Double),
+        croppingPreset: CroppingPreset?
     ) -> VideoControlViewController
-    func makeCropVideoControlViewController() -> CropVideoControlViewController
+    func makeCropVideoControlViewController(croppingPreset: CroppingPreset?) -> CropVideoControlViewController
     func makeSpeedVideoControlViewController(speed: Double) -> SpeedVideoControlViewController
     func makeTrimVideoControlViewController(asset: AVAsset, trimPositions: (Double, Double)) -> TrimVideoControlViewController
 }
@@ -41,20 +42,22 @@ final class VideoEditorViewFactory: VideoEditorViewFactoryProtocol {
     func makeVideoControlViewController(
         asset: AVAsset,
         speed: Double,
-        trimPositions: (Double, Double)
+        trimPositions: (Double, Double),
+        croppingPreset: CroppingPreset? = nil
     ) -> VideoControlViewController {
         let controller = VideoControlViewController(
             asset: asset,
             speed: speed,
             trimPositions: trimPositions,
+            croppingPreset: croppingPreset,
             viewFactory: self
         )
 
         return controller
     }
 
-    func makeCropVideoControlViewController() -> CropVideoControlViewController {
-        CropVideoControlViewController()
+    func makeCropVideoControlViewController(croppingPreset: CroppingPreset?) -> CropVideoControlViewController {
+        CropVideoControlViewController(croppingPreset: croppingPreset)
     }
 
     func makeSpeedVideoControlViewController(speed: Double) -> SpeedVideoControlViewController {
