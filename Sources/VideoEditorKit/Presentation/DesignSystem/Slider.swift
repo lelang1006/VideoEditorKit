@@ -1,6 +1,6 @@
 //
 //  Slider.swift
-//  
+//
 //
 //  Created by Titouan Van Belle on 16.09.20.
 //
@@ -53,7 +53,14 @@ final class Slider: UIControl {
 
     @Published var isDragging: Bool = false
     
-    @Published var value: Double = .zero
+    @Published var value: Double = .zero {
+        didSet {
+            // Khi value được set từ bên ngoài, cập nhật UI
+            if !isDragging {
+                updateValueFromExternal(value)
+            }
+        }
+    }
 
     var range: Range = .linear(min: 0.0, max: 1.0) {
         didSet { setNeedsDisplay() }
@@ -132,6 +139,51 @@ final class Slider: UIControl {
         value = internalValue
 
         isDragging = false
+    }
+    
+    // MARK: Public Methods
+    
+    /// Update slider value from external source with optional animation
+    public func setValue(_ newValue: Double, animated: Bool = false) {
+        let clampedValue = clampValue(newValue)
+        
+        if animated {
+            let newXPosition = xPosition(forValue: clampedValue)
+            UIView.animate(withDuration: 0.3, animations: {
+                self.xPosition = newXPosition
+            }) { _ in
+                self.value = clampedValue
+                self.internalValue = clampedValue
+            }
+        } else {
+            value = clampedValue
+        }
+    }
+    
+    /// Clamp value to valid range
+    private func clampValue(_ value: Double) -> Double {
+        switch range {
+        case .linear(let min, let max):
+            return Swift.max(min, Swift.min(max, value))
+        case .stepped(let values):
+            // Find closest value in stepped range
+            return values.min(by: { abs($0 - value) < abs($1 - value) }) ?? value
+        }
+    }
+    
+    /// Update internal state when value is set externally
+    private func updateValueFromExternal(_ newValue: Double) {
+        let clampedValue = clampValue(newValue)
+        internalValue = clampedValue
+        let newXPosition = xPosition(forValue: clampedValue)
+        
+        // Cập nhật xPosition và force update UI
+        xPosition = newXPosition
+        
+        // Đảm bảo UI được update ngay lập tức
+        DispatchQueue.main.async { [weak self] in
+            self?.updateTrackerLayerFrames()
+        }
     }
 }
 

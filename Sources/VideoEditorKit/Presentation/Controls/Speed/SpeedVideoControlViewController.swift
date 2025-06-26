@@ -54,6 +54,10 @@ final class SpeedVideoControlViewController: UIViewController {
         setupUI()
         setupBindings()
     }
+    
+    func updateNewSpeed(_ speed: Double) {
+        slider.value = speed
+    }
 }
 
 // MARK: Bindings

@@ -80,6 +80,10 @@ final class TrimVideoControlViewController: UIViewController {
             }
             .store(in: &cancellables)
     }
+    
+    func updateNewTrimPositions(_ trimPositions: (Double, Double)) {
+        trimmingControlView.trimPositions = trimPositions
+    }
 }
 
 // MARK: Bindings

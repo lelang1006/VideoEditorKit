@@ -46,7 +46,8 @@ final class VideoControlViewController: UIViewController {
     private var initialCroppingPreset: CroppingPreset?
     private var initialSpeed: Double
     private var initialTrimPositions: (Double, Double)
-
+    
+    private var viewModel: VideoControlViewModel!
     // MARK: Init
 
     init(asset: AVAsset, speed: Double, trimPositions: (Double, Double), croppingPreset: CroppingPreset?, viewFactory: VideoEditorViewFactoryProtocol) {
@@ -94,13 +95,9 @@ fileprivate extension VideoControlViewController {
 
 extension VideoControlViewController {
     func configure(with viewModel: VideoControlViewModel) {
+        self.viewModel = viewModel
         titleLabel.text = viewModel.title
         titleImageView.image = UIImage(named: viewModel.titleImageName, in: .module, compatibleWith: nil)
-
-        // Cập nhật lại giá trị cho các VC con khi configure
-        speedVideoControlViewController.speed = speed
-        trimVideoControlViewController.trimPositions = trimPositions
-        cropVideoControlViewController.croppingPreset = croppingPreset
 
         currentVideoControlViewController?.remove()
 
@@ -147,10 +144,10 @@ fileprivate extension VideoControlViewController {
         titleStack.autoAlignAxis(toSuperviewAxis: .vertical)
         titleStack.autoSetDimension(.height, toSize: 20.0)
 
-        dismissButton.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: 10.0)
-        dismissButton.autoPinEdge(toSuperviewEdge: .right, withInset: 30.0)
-        closeButton.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: 10.0)
-        closeButton.autoPinEdge(toSuperviewEdge: .left, withInset: 30.0)
+        dismissButton.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: 0.0)
+        dismissButton.autoPinEdge(toSuperviewEdge: .right, withInset: 20.0)
+        closeButton.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: 0.0)
+        closeButton.autoPinEdge(toSuperviewEdge: .left, withInset: 20.0)
 
     }
 
@@ -216,7 +213,11 @@ fileprivate extension VideoControlViewController {
         let image = UIImage(named: "Check", in: .module, compatibleWith: nil)
         button.setImage(image, for: .normal)
         button.tintColor = #colorLiteral(red: 0.1137254902, green: 0.1137254902, blue: 0.1215686275, alpha: 1)
-        button.addTarget(self, action: #selector(cancel), for: .touchUpInside)
+        button.addTarget(self, action: #selector(apply), for: .touchUpInside)
+        
+        // Tăng vùng touch bằng contentEdgeInsets
+        button.contentEdgeInsets = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+
         return button
     }
     
@@ -226,6 +227,10 @@ fileprivate extension VideoControlViewController {
         button.setImage(image, for: .normal)
         button.tintColor = #colorLiteral(red: 0.1137254902, green: 0.1137254902, blue: 0.1215686275, alpha: 1)
         button.addTarget(self, action: #selector(close), for: .touchUpInside)
+        
+        // Tăng vùng touch bằng contentEdgeInsets
+        button.contentEdgeInsets = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+        
         return button
     }
 
@@ -234,12 +239,40 @@ fileprivate extension VideoControlViewController {
 // MARK: Actions
 
 fileprivate extension VideoControlViewController {
-    @objc func cancel() {
+    @objc func apply() {
+        // Keep changes made in the control view
+        switch viewModel.videoControl {
+        case .crop:
+            self.initialCroppingPreset = croppingPreset
+        case .speed:
+            self.initialSpeed = speed
+        case .trim:
+            self.initialTrimPositions = trimPositions
+        }
         onDismiss.send()
     }
     
     @objc func close() {
-        //Revert changes made in the control view
-        onDismiss.send()
+        debugPrint("Close touchUpInside")
+        // Revert changes made in the control view
+        switch viewModel.videoControl {
+        case .crop:
+            // Cập nhật lại cho child VC để đồng bộ
+            if croppingPreset != initialCroppingPreset {
+                cropVideoControlViewController.croppingPreset = initialCroppingPreset
+            }
+        case .speed:
+            if speed != initialSpeed {
+                speedVideoControlViewController.updateNewSpeed(initialSpeed)
+            }
+        case .trim:
+            if trimPositions != initialTrimPositions {
+                trimVideoControlViewController.updateNewTrimPositions( initialTrimPositions)
+            }
+        }
+        // Đảm bảo UI được update trước khi dismiss
+        DispatchQueue.main.async { [weak self] in
+            self?.onDismiss.send()
+        }
     }
 }

@@ -1,6 +1,6 @@
 //
 //  VideoTimeline.swift
-//  
+//
 //
 //  Created by Titouan Van Belle on 14.09.20.
 //
@@ -15,7 +15,14 @@ public class TrimmingControlView: UIControl {
 
     @Published var isTrimming: Bool = false
 
-    @Published public var trimPositions: (Double, Double)
+    @Published public var trimPositions: (Double, Double) {
+        didSet {
+            // Khi trimPositions được set từ bên ngoài, cập nhật internal values
+            if !isTrimming { // Chỉ update khi không đang trim để tránh conflict
+                updateInternalValues()
+            }
+        }
+    }
 
     public override var bounds: CGRect {
         didSet {
@@ -110,6 +117,20 @@ public class TrimmingControlView: UIControl {
         isTrimming = false
 
         trimPositions = (Double(internalLeftTrimValue), Double(internalRightTrimValue))
+    }
+
+    // MARK: Public Methods
+    
+    public func setTrimPositions(_ newPositions: (Double, Double), animated: Bool = false) {
+        trimPositions = newPositions
+        updateInternalValues()
+        
+        if animated {
+            updateHandleFramesAnimated()
+        } else {
+            updateLeftHandleFrame()
+            updateRightHandleFrame()
+        }
     }
 }
 
@@ -232,3 +253,18 @@ fileprivate extension TrimmingControlView {
     }
 }
 
+// MARK: Private Methods
+
+fileprivate extension TrimmingControlView {
+    func updateInternalValues() {
+        internalLeftTrimValue = CGFloat(trimPositions.0)
+        internalRightTrimValue = CGFloat(trimPositions.1)
+    }
+    
+    func updateHandleFramesAnimated() {
+        UIView.animate(withDuration: 0.3, animations: {
+            self.updateLeftHandleFrame()
+            self.updateRightHandleFrame()
+        })
+    }
+}
