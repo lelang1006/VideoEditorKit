@@ -7,6 +7,7 @@
 
 import AVFoundation
 import VideoPlayer
+import VideoEditor
 
 protocol VideoEditorViewFactoryProtocol {
     func makeVideoPlayerController() -> VideoPlayerController

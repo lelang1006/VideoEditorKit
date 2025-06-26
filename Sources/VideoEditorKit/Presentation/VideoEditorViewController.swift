@@ -340,7 +340,8 @@ fileprivate extension VideoEditorViewController {
         viewFactory.makeVideoControlViewController(
             asset: store.originalAsset,
             speed: store.speed,
-            trimPositions: store.trimPositions
+            trimPositions: store.trimPositions,
+            croppingPreset: store.croppingPreset
         )
     }
 

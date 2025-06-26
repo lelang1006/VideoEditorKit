@@ -43,13 +43,11 @@ final class CroppingPresetCell: UICollectionViewCell {
 
 extension CroppingPresetCell {
     func configure(with viewModel: CroppingPresetCellViewModel) {
+        self.viewModel = viewModel
         title.text = viewModel.name
         imageView.image = UIImage(named: viewModel.imageName, in: .module, compatibleWith: nil)
-        
         // Set isChoosed từ viewModel
         isChoosed = viewModel.isSelected
-
-        self.viewModel = viewModel
     }
 }
 

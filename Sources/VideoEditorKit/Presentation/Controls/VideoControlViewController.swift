@@ -100,7 +100,7 @@ extension VideoControlViewController {
         // Cập nhật lại giá trị cho các VC con khi configure
         speedVideoControlViewController.speed = speed
         trimVideoControlViewController.trimPositions = trimPositions
-        cropVideoControlViewController.selectedPreset = croppingPreset
+        cropVideoControlViewController.croppingPreset = croppingPreset
 
         currentVideoControlViewController?.remove()
 
@@ -180,7 +180,7 @@ fileprivate extension VideoControlViewController {
     }
 
     func makeCropVideoControlViewController() -> CropVideoControlViewController {
-        viewFactory.makeCropVideoControlViewController()
+        viewFactory.makeCropVideoControlViewController(croppingPreset: croppingPreset)
     }
 
     func makeTitleStackView() -> UIStackView {
