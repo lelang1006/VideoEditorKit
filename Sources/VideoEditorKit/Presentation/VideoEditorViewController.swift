@@ -1,6 +1,6 @@
 //
 //  VideoEditorViewController.swift
-//  
+//
 //
 //  Created by Titouan Van Belle on 11.09.20.
 //
@@ -34,7 +34,9 @@ public final class VideoEditorViewController: UIViewController {
     private lazy var controlsStack: UIStackView = makeControlsStack()
     private lazy var videoTimelineViewController: VideoTimelineViewController = makeVideoTimelineViewController()
     private lazy var videoControlListController: VideoControlListController = makeVideoControlListControllers()
-    private lazy var videoControlViewController: VideoControlViewController = makeVideoControlViewController()
+
+    // Thêm property để quản lý controller hiện tại
+    private var currentVideoControlController: VideoControlProtocol?
 
     private var videoControlHeightConstraint: NSLayoutConstraint!
 
@@ -136,27 +138,6 @@ fileprivate extension VideoEditorViewController {
             .sink { [weak self] videoControl in
                 guard let self = self else { return }
                 self.presentVideoControlController(for: videoControl)
-            }
-            .store(in: &cancellables)
-
-        videoControlViewController.$speed
-            .dropFirst(1)
-            .assign(to: \.speed, weakly: store)
-            .store(in: &cancellables)
-
-        videoControlViewController.$trimPositions
-            .dropFirst(1)
-            .assign(to: \.trimPositions, weakly: store)
-            .store(in: &cancellables)
-
-        videoControlViewController.$croppingPreset
-            .dropFirst(1)
-            .assign(to: \.croppingPreset, weakly: store)
-            .store(in: &cancellables)
-
-        videoControlViewController.onDismiss
-            .sink { [unowned self] _ in
-                self.animateVideoControlViewControllerOut()
             }
             .store(in: &cancellables)
     }
@@ -336,50 +317,96 @@ fileprivate extension VideoEditorViewController {
         viewFactory.makeVideoControlListController(store: store)
     }
 
-    func makeVideoControlViewController() -> VideoControlViewController {
-        viewFactory.makeVideoControlViewController(
-            asset: store.originalAsset,
-            speed: store.speed,
-            trimPositions: store.trimPositions,
-            croppingPreset: store.croppingPreset
-        )
-    }
-
     func presentVideoControlController(for videoControl: VideoControl) {
         navigationItem.rightBarButtonItems = []
         navigationItem.leftBarButtonItems = []
-        if videoControlViewController.view.superview == nil {
+        
+        // Tạo controller riêng biệt dựa trên VideoControl type
+        let controller = createVideoControlController(for: videoControl)
+        currentVideoControlController = controller
+        
+        // Setup bindings cho controller mới
+        setupVideoControlBindings(for: controller, videoControl: videoControl)
+        
+        if controller.view.superview == nil {
             let height: CGFloat = 210.0
             let offset = -(height + view.safeAreaInsets.bottom)
 
-            add(videoControlViewController)
+            add(controller)
 
-            videoControlViewController.view.autoPinEdge(toSuperviewEdge: .right)
-            videoControlViewController.view.autoPinEdge(toSuperviewEdge: .left)
-            videoControlViewController.view.autoSetDimension(.height, toSize: height)
-            videoControlViewController.view.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: offset)
+            controller.view.autoPinEdge(toSuperviewEdge: .right)
+            controller.view.autoPinEdge(toSuperviewEdge: .left)
+            controller.view.autoSetDimension(.height, toSize: height)
+            controller.view.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: offset)
 
             self.view.layoutIfNeeded()
         }
 
-        let viewModel = VideoControlViewModel(videoControl: videoControl)
-        videoControlViewController.configure(with: viewModel)
-
-        animateVideoControlViewControllerIn()
+        controller.configure(with: videoControl)
+        animateVideoControlViewControllerIn(controller)
+    }
+    
+    private func createVideoControlController(for videoControl: VideoControl) -> VideoControlProtocol {
+        switch videoControl {
+        case .crop:
+            return viewFactory.makeCropVideoControlViewController(croppingPreset: store.croppingPreset)
+        case .speed:
+            debugPrint("Creating SpeedController with store.speed: \(store.speed)")
+            return viewFactory.makeSpeedVideoControlViewController(speed: store.speed)
+        case .trim:
+            return viewFactory.makeTrimVideoControlViewController(asset: store.originalAsset, trimPositions: store.trimPositions)
+        }
+    }
+    
+    private func setupVideoControlBindings(for controller: VideoControlProtocol, videoControl: VideoControl) {
+        // Bind onDismiss cho tất cả controllers
+        controller.onDismiss
+            .sink { [unowned self] _ in
+                self.animateVideoControlViewControllerOut(controller)
+            }
+            .store(in: &cancellables)
+        
+        // Bind specific properties dựa trên controller type
+        switch videoControl {
+        case .crop:
+            if let cropController = controller as? CropVideoControlViewController {
+                cropController.$croppingPreset
+                    .dropFirst(1)
+                    .assign(to: \.croppingPreset, weakly: store)
+                    .store(in: &cancellables)
+            }
+        case .speed:
+            if let speedController = controller as? SpeedVideoControlViewController {
+                speedController.$speed
+                    .dropFirst(1)
+                    .assign(to: \.speed, weakly: store)
+                    .store(in: &cancellables)
+            }
+        case .trim:
+            if let trimController = controller as? TrimVideoControlViewController {
+                trimController.$trimPositions
+                    .dropFirst(1)
+                    .assign(to: \.trimPositions, weakly: store)
+                    .store(in: &cancellables)
+            }
+        }
     }
 
-    func animateVideoControlViewControllerIn() {
-        let y = -(videoControlViewController.view.bounds.height + view.safeAreaInsets.bottom)
+    func animateVideoControlViewControllerIn(_ controller: VideoControlProtocol) {
+        let y = -(controller.view.bounds.height + view.safeAreaInsets.bottom)
         UIView.animate(withDuration: 0.3, delay: 0.0, usingSpringWithDamping: 1.0, initialSpringVelocity: 0, options: .curveEaseInOut, animations: {
-            self.videoControlViewController.view.transform = CGAffineTransform(translationX: 0, y: y)
+            controller.view.transform = CGAffineTransform(translationX: 0, y: y)
         })
     }
 
-    func animateVideoControlViewControllerOut() {
+    func animateVideoControlViewControllerOut(_ controller: VideoControlProtocol) {
         UIView.animate(withDuration: 0.3, delay: 0.0, usingSpringWithDamping: 1.0, initialSpringVelocity: 0, options: .curveEaseInOut, animations: {
-            self.videoControlViewController.view.transform = .identity
+            controller.view.transform = .identity
         }, completion: { _ in
-            // Show navigation bar buttons again after dismiss
+            // Remove controller và show navigation bar buttons
+            controller.removeFromParent()
+            controller.view.removeFromSuperview()
+            self.currentVideoControlController = nil
             self.setupNavigationItems()
         })
     }

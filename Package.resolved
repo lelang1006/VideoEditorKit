@@ -1,0 +1,34 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "PureLayout",
+        "repositoryURL": "https://github.com/PureLayout/PureLayout",
+        "state": {
+          "branch": null,
+          "revision": "5561683c96dc49b023c1299bfe4f6fbeed5f8199",
+          "version": "3.1.9"
+        }
+      },
+      {
+        "package": "VideoEditor",
+        "repositoryURL": "https://github.com/TitouanVanBelle/VideoEditor",
+        "state": {
+          "branch": "master",
+          "revision": "b666aeb7867d641dbbbb12e896b8488a6323c7d6",
+          "version": null
+        }
+      },
+      {
+        "package": "VideoPlayer",
+        "repositoryURL": "https://github.com/TitouanVanBelle/VideoPlayer",
+        "state": {
+          "branch": "master",
+          "revision": "0fbcdbed2504972a3feda51a9974f0c23df0262d",
+          "version": null
+        }
+      }
+    ]
+  },
+  "version": 1
+}

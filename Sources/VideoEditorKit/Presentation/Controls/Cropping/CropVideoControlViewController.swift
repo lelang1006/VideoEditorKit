@@ -9,7 +9,7 @@ import Combine
 import UIKit
 import VideoEditor
 
-final class CropVideoControlViewController: UIViewController {
+final class CropVideoControlViewController: BaseVideoControlViewController {
 
     // MARK: Inner Types
 
@@ -22,6 +22,7 @@ final class CropVideoControlViewController: UIViewController {
     // MARK: Public Properties
 
     @Published var croppingPreset: CroppingPreset?
+    private var initialCroppingPreset: CroppingPreset?
 
     override var tabBarItem: UITabBarItem! {
         get {
@@ -39,13 +40,13 @@ final class CropVideoControlViewController: UIViewController {
     private lazy var collectionView: UICollectionView = makeCollectionView()
 
     private var datasource: Datasource!
-    private var cancellables = Set<AnyCancellable>()
     private let cropItems: [CroppingPreset] = CroppingPreset.allCases
     
     // MARK: Init
 
     init(croppingPreset: CroppingPreset? = nil) {
         self.croppingPreset = croppingPreset
+        self.initialCroppingPreset = croppingPreset
         super.init(nibName: nil, bundle: nil)
     }
     
@@ -53,14 +54,31 @@ final class CropVideoControlViewController: UIViewController {
         fatalError("init(coder:) has not been implemented")
     }
     
-    // MARK: Life Cycle
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-
-        setupUI()
+    // MARK: BaseVideoControlViewController Override
+    override func setupContentView() {
+        super.setupContentView()
+        
+        // Add collection view to content view
+        contentView.addSubview(collectionView)
+        
+        // Setup constraints
+        collectionView.autoSetDimension(.height, toSize: 100.0)
+        collectionView.autoPinEdge(toSuperviewEdge: .left)
+        collectionView.autoPinEdge(toSuperviewEdge: .right)
+        collectionView.autoAlignAxis(toSuperviewAxis: .horizontal)
+        
+        // Setup collection view
+        setupCollectionView()
+        
+        // Load initial data
         loadPresets(with: croppingPreset)
+        
+        // Setup bindings
         setupBindings()
+    }
+        
+    override func resetToInitialValues() {
+        croppingPreset = initialCroppingPreset
     }
 }
 

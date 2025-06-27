@@ -1,14 +1,29 @@
 //
 //  File.swift
-//  
+//
 //
 //  Created by Titouan Van Belle on 27.10.20.
 //
 
 import Foundation
 
-enum VideoControl: CaseIterable {
+public enum VideoControl: CaseIterable {
     case speed
     case trim
     case crop
+    
+    public var title: String {
+        switch self {
+        case .speed:
+            return "Speed"
+        case .trim:
+            return "Trim"
+        case .crop:
+            return "Crop"
+        }
+    }
+    
+    public var titleImageName: String {
+        return "VideoControls/\(title)"
+    }
 }
