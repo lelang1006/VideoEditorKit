@@ -17,6 +17,7 @@ extension VideoEdit {
             edit.croppingPreset = previousEdit.croppingPreset
             edit.speedRate = speedRate
             edit.trimPositions = previousEdit.trimPositions
+            edit.filter = previousEdit.filter
             return edit
         }
     )
@@ -28,6 +29,7 @@ extension VideoEdit {
             edit.croppingPreset = previousEdit.croppingPreset
             edit.speedRate = previousEdit.speedRate
             edit.trimPositions = trimPositions
+            edit.filter = previousEdit.filter
             return edit
         }
     )
@@ -39,6 +41,19 @@ extension VideoEdit {
             edit.croppingPreset = croppingPreset
             edit.speedRate = previousEdit.speedRate
             edit.trimPositions = previousEdit.trimPositions
+            edit.filter = previousEdit.filter
+            return edit
+        }
+    )
+    
+    static let filterLens = Lens<VideoEdit, VideoFilter?>(
+        from: { $0.filter },
+        to: { filter, previousEdit in
+            var edit = VideoEdit()
+            edit.croppingPreset = previousEdit.croppingPreset
+            edit.speedRate = previousEdit.speedRate
+            edit.trimPositions = previousEdit.trimPositions
+            edit.filter = filter
             return edit
         }
     )

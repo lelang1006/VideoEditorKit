@@ -353,6 +353,8 @@ fileprivate extension VideoEditorViewController {
         case .speed:
             debugPrint("Creating SpeedController with store.speed: \(store.speed)")
             return viewFactory.makeSpeedVideoControlViewController(speed: store.speed)
+        case .filter:
+            return viewFactory.makeFilterVideoControlViewController(selectedFilter: store.filter)
         case .trim:
             return viewFactory.makeTrimVideoControlViewController(asset: store.originalAsset, trimPositions: store.trimPositions)
         }
@@ -380,6 +382,13 @@ fileprivate extension VideoEditorViewController {
                 speedController.$speed
                     .dropFirst(1)
                     .assign(to: \.speed, weakly: store)
+                    .store(in: &cancellables)
+            }
+        case .filter:
+            if let filterController = controller as? FilterVideoControlViewController {
+                filterController.$selectedFilter
+                    .dropFirst(1)
+                    .assign(to: \.filter, weakly: store)
                     .store(in: &cancellables)
             }
         case .trim:

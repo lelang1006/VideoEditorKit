@@ -38,6 +38,8 @@ final class VideoEditorStore {
     @Published var trimPositions: (Double, Double) = (0.0, 1.0)
     @Published var croppingPreset: CroppingPreset?
 
+    @Published var filter: VideoFilter?
+
     @Published var videoEdit: VideoEdit
 
     // MARK: Private Properties
@@ -120,6 +122,19 @@ fileprivate extension VideoEditorStore {
             .compactMap { [weak self] croppingPreset in
                 guard let self = self else { return nil }
                 return VideoEdit.croppingPresetLens.to(croppingPreset, self.videoEdit)
+            }
+            .assign(to: \.videoEdit, weakly: self)
+            .store(in: &cancellables)
+
+        $filter
+            .dropFirst(1)
+            .filter { [weak self] filter in
+                guard let self = self else { return false }
+                return filter != self.videoEdit.filter
+            }
+            .compactMap { [weak self] filter in
+                guard let self = self else { return nil }
+                return VideoEdit.filterLens.to(filter, self.videoEdit)
             }
             .assign(to: \.videoEdit, weakly: self)
             .store(in: &cancellables)

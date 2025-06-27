@@ -11,6 +11,7 @@ public enum VideoControl: CaseIterable {
     case speed
     case trim
     case crop
+    case filter
     
     public var title: String {
         switch self {
@@ -20,10 +21,17 @@ public enum VideoControl: CaseIterable {
             return "Trim"
         case .crop:
             return "Crop"
+        case .filter:
+            return "Filters"
         }
     }
     
     public var titleImageName: String {
-        return "VideoControls/\(title)"
+        switch self {
+        case .filter:
+            return "Filter"
+        default:
+            return "VideoControls/\(title)"
+        }
     }
 }
