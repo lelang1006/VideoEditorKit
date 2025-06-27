@@ -57,7 +57,9 @@ final class VideoControlListController: UIViewController {
 
 fileprivate extension VideoControlListController {
     func loadVideoControls() {
-        let viewModels = VideoControl.allCases.map(VideoControlCellViewModel.init)
+        let allCases = VideoControl.allCases
+        let viewModels = allCases.map(VideoControlCellViewModel.init)
+        
         var snapshot = NSDiffableDataSourceSnapshot<Section, VideoControlCellViewModel>()
         snapshot.appendSections([.main])
         snapshot.appendItems(viewModels, toSection: .main)
@@ -83,8 +85,8 @@ fileprivate extension VideoControlListController {
     func setupConstraints() {
         collectionView.autoPinEdge(toSuperviewEdge: .top)
         collectionView.autoPinEdge(toSuperviewEdge: .bottom)
-        collectionView.autoAlignAxis(toSuperviewAxis: .vertical)
-        collectionView.autoSetDimension(.width, toSize: 270)
+        collectionView.autoPinEdge(toSuperviewEdge: .left, withInset: 16)
+        collectionView.autoPinEdge(toSuperviewEdge: .right, withInset: 16)
     }
 
     func setupCollectionView() {
@@ -108,8 +110,8 @@ fileprivate extension VideoControlListController {
     func makeCollectionView() -> UICollectionView {
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .horizontal
-        layout.minimumInteritemSpacing = 2
-        layout.minimumLineSpacing = 2
+        layout.minimumInteritemSpacing = 8
+        layout.minimumLineSpacing = 8
 
         let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
         view.backgroundColor = .clear
@@ -128,7 +130,11 @@ extension VideoControlListController: UICollectionViewDelegateFlowLayout {
         layout collectionViewLayout: UICollectionViewLayout,
         sizeForItemAt indexPath: IndexPath
     ) -> CGSize {
-        CGSize(width: 90.0, height: 60.0)
+        // Tính toán width để fit 4 items với spacing
+        let totalSpacing = CGFloat(3 * 8) // 3 spaces between 4 items
+        let availableWidth = collectionView.bounds.width - totalSpacing
+        let itemWidth = availableWidth / 4
+        return CGSize(width: itemWidth, height: 60.0)
     }
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {

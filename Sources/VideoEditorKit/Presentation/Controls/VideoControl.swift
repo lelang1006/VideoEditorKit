@@ -27,11 +27,6 @@ public enum VideoControl: CaseIterable {
     }
     
     public var titleImageName: String {
-        switch self {
-        case .filter:
-            return "Filter"
-        default:
-            return "VideoControls/\(title)"
-        }
+        return "VideoControls/\(title)"
     }
 }

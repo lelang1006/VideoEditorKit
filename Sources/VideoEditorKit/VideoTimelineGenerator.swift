@@ -14,6 +14,8 @@ protocol VideoTimelineGeneratorProtocol {
 }
 
 final class VideoTimelineGenerator: VideoTimelineGeneratorProtocol {
+    
+    init() {}
 
     func videoTimeline(for asset: AVAsset, in bounds: CGRect, numberOfFrames: Int) -> AnyPublisher<[CGImage], Error> {
         Future { promise in

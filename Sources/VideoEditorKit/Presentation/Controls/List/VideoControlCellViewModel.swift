@@ -25,10 +25,21 @@ final class VideoControlCellViewModel: NSObject {
             return "Trim"
         case .crop:
             return "Crop"
+        case .filter:
+            return "Filter"
         }
     }
 
     var imageName: String {
-        "VideoControls/\(name)"
+        switch videoControl {
+        case .speed:
+            return "VideoControls/Speed"
+        case .trim:
+            return "VideoControls/Trim"
+        case .crop:
+            return "VideoControls/Crop"
+        case .filter:
+            return "VideoControls/Filter"  // Không có 's' ở cuối
+        }
     }
 }

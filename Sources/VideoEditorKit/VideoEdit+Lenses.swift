@@ -7,7 +7,6 @@
 
 import CoreMedia
 import Foundation
-import VideoEditor
 
 extension VideoEdit {
     static let speedRateLens = Lens<VideoEdit, Double>(

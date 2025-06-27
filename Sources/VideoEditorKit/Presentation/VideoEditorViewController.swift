@@ -9,7 +9,6 @@ import AVFoundation
 import Combine
 import PureLayout
 import UIKit
-import VideoEditor
 import VideoPlayer
 
 public final class VideoEditorViewController: UIViewController {
@@ -191,7 +190,7 @@ fileprivate extension VideoEditorViewController {
         videoTimelineViewController.view.autoSetDimension(.height, toSize: 220.0)
         videoTimelineViewController.view.autoPinEdge(toSuperviewEdge: .left)
         videoTimelineViewController.view.autoPinEdge(toSuperviewEdge: .right)
-        videoTimelineViewController.view.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: 60.0)
+        videoTimelineViewController.view.autoPinEdge(.bottom, to: .top, of: videoControlListController.view)
 
         videoControlListController.view.autoPinEdge(toSuperviewSafeArea: .bottom)
         videoControlListController.view.autoPinEdge(toSuperviewEdge: .left)

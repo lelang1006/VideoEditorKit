@@ -3,11 +3,10 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		5905AF14251E5A50004E403F /* VideoEditor in Frameworks */ = {isa = PBXBuildFile; productRef = 5905AF13251E5A50004E403F /* VideoEditor */; };
 		594100092549C55F00AD5F41 /* HongKong.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 594100082549C55F00AD5F41 /* HongKong.mp4 */; };
 		59A6FA632536EB5100C542BF /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59BC0BFF2536E52A000390AB /* AppDelegate.swift */; };
 		59A6FA652536EB5400C542BF /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59BC0C012536E52A000390AB /* SceneDelegate.swift */; };
@@ -38,7 +37,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				59A6FA6B2536EB8100C542BF /* PureLayout in Frameworks */,
-				5905AF14251E5A50004E403F /* VideoEditor in Frameworks */,
 				59A6FA6E2536EBA900C542BF /* VideoEditorKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -119,7 +117,6 @@
 			);
 			name = VideoEditorKitDemo;
 			packageProductDependencies = (
-				5905AF13251E5A50004E403F /* VideoEditor */,
 				59A6FA6A2536EB8100C542BF /* PureLayout */,
 				59A6FA6D2536EBA900C542BF /* VideoEditorKit */,
 			);
@@ -152,6 +149,7 @@
 			mainGroup = 5905AEDC251E5981004E403F;
 			packageReferences = (
 				59A6FA692536EB8100C542BF /* XCRemoteSwiftPackageReference "PureLayout" */,
+				59EE03942536E58F00EEAA43 /* XCLocalSwiftPackageReference ".." */,
 			);
 			productRefGroup = 5905AEE6251E5981004E403F /* Products */;
 			projectDirPath = "";
@@ -386,6 +384,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		59EE03942536E58F00EEAA43 /* XCLocalSwiftPackageReference ".." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		59A6FA692536EB8100C542BF /* XCRemoteSwiftPackageReference "PureLayout" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -398,10 +403,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		5905AF13251E5A50004E403F /* VideoEditor */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = VideoEditor;
-		};
 		59A6FA6A2536EB8100C542BF /* PureLayout */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 59A6FA692536EB8100C542BF /* XCRemoteSwiftPackageReference "PureLayout" */;
@@ -409,6 +410,7 @@
 		};
 		59A6FA6D2536EBA900C542BF /* VideoEditorKit */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 59EE03942536E58F00EEAA43 /* XCLocalSwiftPackageReference ".." */;
 			productName = VideoEditorKit;
 		};
 /* End XCSwiftPackageProductDependency section */

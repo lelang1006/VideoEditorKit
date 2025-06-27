@@ -47,7 +47,7 @@ final class FilterVideoControlViewController: BaseVideoControlViewController {
 
     // MARK: Init
 
-    init(selectedFilter: VideoFilter? = nil) {
+    public init(selectedFilter: VideoFilter? = nil) {
         self.selectedFilter = selectedFilter
         self.initialFilter = selectedFilter
         super.init(nibName: nil, bundle: nil)

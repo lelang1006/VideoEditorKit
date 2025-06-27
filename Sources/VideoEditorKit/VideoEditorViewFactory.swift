@@ -7,8 +7,8 @@
 
 import AVFoundation
 import VideoPlayer
-import VideoEditor
 
+// Internal protocol - không cần public
 protocol VideoEditorViewFactoryProtocol {
     func makeVideoPlayerController() -> VideoPlayerController
     func makeVideoTimelineViewController(store: VideoEditorStore) -> VideoTimelineViewController
@@ -19,7 +19,10 @@ protocol VideoEditorViewFactoryProtocol {
     func makeTrimVideoControlViewController(asset: AVAsset, trimPositions: (Double, Double)) -> TrimVideoControlViewController
 }
 
-final class VideoEditorViewFactory: VideoEditorViewFactoryProtocol {
+// Chỉ factory class cần public để demo app sử dụng
+public final class VideoEditorViewFactory: VideoEditorViewFactoryProtocol {
+    
+    public init() {}
 
     func makeVideoPlayerController() -> VideoPlayerController {
         var theme = VideoPlayerController.Theme()

@@ -6,8 +6,7 @@ import PackageDescription
 let package = Package(
     name: "VideoEditorKit",
     platforms: [
-        .iOS(.v13),
-        .macOS(.v10_15)
+        .iOS(.v13)
     ],
     products: [
         .library(
@@ -15,19 +14,21 @@ let package = Package(
             targets: ["VideoEditorKit"]),
     ],
     dependencies: [
-        .package(name: "VideoPlayer", url: "https://github.com/TitouanVanBelle/VideoPlayer", .branch("master")),
-        .package(name: "VideoEditor", url: "https://github.com/TitouanVanBelle/VideoEditor", .branch("master")),
         .package(url: "https://github.com/PureLayout/PureLayout", .upToNextMajor(from: "3.1.6"))
     ],
     targets: [
         .target(
+            name: "VideoPlayer",
+            dependencies: ["PureLayout"]),
+        .target(
             name: "VideoEditorKit",
             dependencies: [
                 "VideoPlayer",
-                "VideoEditor",
                 "PureLayout"
             ],
-            exclude: ["Demo"],
-            resources: [.process("Resources")])
+            resources: [.process("Resources")]),
+        .testTarget(
+            name: "VideoEditorKitTests",
+            dependencies: ["VideoEditorKit"])
     ]
 )

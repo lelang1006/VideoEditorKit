@@ -7,8 +7,8 @@
 
 import Combine
 import UIKit
-import VideoEditor
 
+// Internal - chỉ factory sử dụng
 final class CropVideoControlViewController: BaseVideoControlViewController {
 
     // MARK: Inner Types

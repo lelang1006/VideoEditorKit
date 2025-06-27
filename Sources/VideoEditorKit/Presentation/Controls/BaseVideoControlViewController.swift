@@ -1,7 +1,6 @@
 import UIKit
 import Combine
 import PureLayout
-import VideoEditor
 
 open class BaseVideoControlViewController: UIViewController, VideoControlProtocol {
     

@@ -8,7 +8,6 @@
 import AVFoundation
 import Combine
 import Foundation
-import VideoEditor
 
 extension VideoEditResult {
     var item: AVPlayerItem {
@@ -21,7 +20,7 @@ extension VideoEditResult {
     }
 }
 
-final class VideoEditorStore {
+public final class VideoEditorStore {
 
     // MARK: Public Properties
 
@@ -51,7 +50,21 @@ final class VideoEditorStore {
 
     // MARK: Init
 
-    init(
+    public init(
+        asset: AVAsset,
+        videoEdit: VideoEdit?
+    ) {
+        self.originalAsset = asset
+        self.editor = VideoEditor()
+        self.generator = VideoTimelineGenerator()
+        self.editedPlayerItem = AVPlayerItem(asset: asset)
+        self.videoEdit = videoEdit ?? VideoEdit()
+
+        setupBindings()
+    }
+    
+    // Internal initializer for dependency injection in tests
+    internal init(
         asset: AVAsset,
         videoEdit: VideoEdit?,
         editor: VideoEditor = .init(),
