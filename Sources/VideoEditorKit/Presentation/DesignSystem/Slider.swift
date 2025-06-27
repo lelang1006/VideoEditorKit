@@ -97,6 +97,11 @@ final class Slider: UIControl {
         fatalError("init(coder:) has not been implemented")
     }
     
+    deinit {
+        // Cleanup bindings to prevent potential memory leaks
+        cancellables.removeAll()
+    }
+    
     public override func layoutSubviews() {
         super.layoutSubviews()
         
@@ -107,6 +112,7 @@ final class Slider: UIControl {
         addSubview(currentValueLabel)
         addSubview(valuesStackView)
 
+        // Update xPosition after bounds are available
         xPosition = xPosition(forValue: value)
 
         updateTrackerLayerFrames()
@@ -139,18 +145,24 @@ final class Slider: UIControl {
 
 fileprivate extension Slider {
     func setupBindings() {
+        // Clear any existing bindings first (defensive programming)
+        cancellables.removeAll()
+        
+        // 1. xPosition → internalValue (when dragging)
         $xPosition
             .map(value(forXPosition:))
             .assign(to: \.internalValue, weakly: self)
             .store(in: &cancellables)
 
+        // 2. xPosition → update UI layers
         $xPosition
-            .sink { [weak self] x in
+            .sink { [weak self] _ in
                 guard let self = self else { return }
                 self.updateTrackerLayerFrames()
             }
             .store(in: &cancellables)
 
+        // 3. internalValue → value (only when dragging and continuous)
         $internalValue
             .filter { [weak self] _ in
                 guard let self = self else { return false }
@@ -159,11 +171,13 @@ fileprivate extension Slider {
             .assign(to: \.value, weakly: self)
             .store(in: &cancellables)
 
+        // 4. internalValue → current value label
         $internalValue
             .map(formattedString(forValue:))
             .assign(to: \.text, weakly: currentValueLabel)
             .store(in: &cancellables)
 
+        // 5. internalValue → haptic feedback
         $internalValue
             .removeDuplicates()
             .sink { [weak self] value in
@@ -172,6 +186,7 @@ fileprivate extension Slider {
             }
             .store(in: &cancellables)
 
+        // 6. value → xPosition (only when not dragging)
         $value
             .filter { [weak self] _ in
                 guard let self = self else { return false }
@@ -179,8 +194,10 @@ fileprivate extension Slider {
             }
             .sink { [weak self] value in
                 guard let self = self else { return }
-                self.internalValue = value
-                self.xPosition = self.xPosition(forValue:value)
+                // Only update xPosition if bounds are available
+                if self.bounds.width > 0 {
+                    self.xPosition = self.xPosition(forValue: value)
+                }
             }
             .store(in: &cancellables)
     }
@@ -216,25 +233,38 @@ fileprivate extension Slider {
     }
 
     func value(forXPosition xPosition: CGFloat, between min: Double, and max: Double) -> Double {
+        // Guard against zero bounds
+        guard bounds.width > 0 else {
+            return min
+        }
+        
         let scaledPosition = xPosition - Constants.trackerHorizontalMargin
         let width = bounds.width - Constants.trackerOutterCircleHeight - 2 * Constants.trackerHorizontalMargin
         return Double(scaledPosition / width) * (max - min) + min
     }
 
     func value(forXPosition xPosition: CGFloat, in values: [Double]) -> Double {
+        // Guard against zero bounds
+        guard bounds.width > 0 else {
+            return values.first ?? 0
+        }
+        
         let width = bounds.width - Constants.trackerOutterCircleHeight - 2 * Constants.trackerHorizontalMargin
-        let progress = xPosition / width
-        let step = (CGFloat(1) / CGFloat((values.count - 1)))
+        let scaledPosition = xPosition - Constants.trackerHorizontalMargin
+        let progress = scaledPosition / width
+        let step = 1.0 / CGFloat(values.count - 1)
         let index = Int(floor(progress / step))
 
-        if index == values.count - 1 {
-            return values[index]
-        } else {
-            let min = values[index]
-            let max = values[index + 1]
-            let value = min + (max - min) * ((Double(progress) - Double(index) * Double(step)) / Double(step))
-            return value
+        // Boundary checks
+        guard index >= 0 && index < values.count - 1 else {
+            return index >= values.count - 1 ? values.last! : values.first!
         }
+
+        // Calculate interpolated value
+        let min = values[index]
+        let max = values[index + 1]
+        let localProgress = (progress - CGFloat(index) * step) / step
+        return min + (max - min) * Double(localProgress)
     }
 
     func xPosition(forValue value: Double) -> CGFloat {
@@ -247,6 +277,11 @@ fileprivate extension Slider {
     }
 
     func xPosition(forValue value: Double, between min: Double, and max: Double) -> CGFloat {
+        // Guard against zero bounds
+        guard bounds.width > 0 else {
+            return Constants.trackerHorizontalMargin
+        }
+        
         let width = bounds.width - Constants.trackerOutterCircleHeight - 2 * Constants.trackerHorizontalMargin
 
         let xPosition = CGFloat((value - min) / (max - min)) * width + Constants.trackerHorizontalMargin
@@ -254,19 +289,40 @@ fileprivate extension Slider {
     }
 
     func xPosition(forValue value: Double, in values: [Double]) -> CGFloat {
+        // Guard against zero bounds
+        guard bounds.width > 0 else {
+            return Constants.trackerHorizontalMargin
+        }
+        
         let width = bounds.width - Constants.trackerOutterCircleHeight - 2 * Constants.trackerHorizontalMargin
         let segment = width / CGFloat(values.count - 1)
 
+        // Exact match case
         if let index = values.firstIndex(of: value) {
-            let xPosition = CGFloat(index) * segment
+            let xPosition = CGFloat(index) * segment + Constants.trackerHorizontalMargin
             return xPosition
         }
 
-        let index = values.firstIndex(where: { $0 > value })! - 1
-        let min = CGFloat(values[index])
-        let max = CGFloat(values[index + 1])
-        let xPosition = CGFloat(index - 1) * segment + (max - min) * (max - CGFloat(value))
-        return xPosition
+        // Interpolation case - find nearest values
+        guard let nextIndex = values.firstIndex(where: { $0 > value }),
+              nextIndex > 0 else {
+            // Value is smaller than minimum, return first position
+            return Constants.trackerHorizontalMargin
+        }
+        
+        let prevIndex = nextIndex - 1
+        let minValue = values[prevIndex]
+        let maxValue = values[nextIndex]
+        
+        // Calculate ratio between the two values
+        let ratio = (value - minValue) / (maxValue - minValue)
+        
+        // Calculate interpolated position
+        let startX = CGFloat(prevIndex) * segment
+        let endX = CGFloat(nextIndex) * segment
+        let interpolatedX = startX + (endX - startX) * CGFloat(ratio)
+        
+        return interpolatedX + Constants.trackerHorizontalMargin
     }
 
     func formattedString(forValue value: Double) -> String {
