@@ -39,6 +39,7 @@ final class FilterVideoControlViewController: BaseVideoControlViewController {
     private lazy var collectionView: UICollectionView = makeCollectionView()
     private var datasource: Datasource!
     private var originalThumbnail: UIImage?
+    private var videoId: String?
     
     private var currentCategory: FilterCategory = .photoEffects {
         didSet {
@@ -48,10 +49,11 @@ final class FilterVideoControlViewController: BaseVideoControlViewController {
 
     // MARK: Init
 
-    public init(selectedFilter: VideoFilter? = nil, originalThumbnail: UIImage? = nil) {
+    public init(selectedFilter: VideoFilter? = nil, originalThumbnail: UIImage? = nil, videoId: String? = nil) {
         self.selectedFilter = selectedFilter
         self.initialFilter = selectedFilter
         self.originalThumbnail = originalThumbnail
+        self.videoId = videoId
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -181,7 +183,7 @@ fileprivate extension FilterVideoControlViewController {
                 for: indexPath
             ) as! FilterCell
 
-            cell.configure(with: filterViewModel, originalThumbnail: self?.originalThumbnail)
+            cell.configure(with: filterViewModel, originalThumbnail: self?.originalThumbnail, videoId: self?.videoId)
             cell.setNeedsLayout()
             cell.layoutIfNeeded()
 

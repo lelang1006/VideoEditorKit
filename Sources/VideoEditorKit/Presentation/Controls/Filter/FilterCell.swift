@@ -24,6 +24,19 @@ final class FilterCell: UICollectionViewCell {
     private lazy var thumbnailView: UIImageView = makeThumbnailView()
 
     private var viewModel: FilterCellViewModel!
+    
+    // Cache for filtered thumbnails to avoid regenerating
+    private static var filteredThumbnailCache = NSCache<NSString, UIImage>()
+    
+    // Track cache keys for easier management
+    private static var cacheKeys = Set<String>()
+    private static let cacheKeysQueue = DispatchQueue(label: "FilterCell.cacheKeys", attributes: .concurrent)
+    
+    // Shared CIContext for better performance
+    private static let sharedCIContext = CIContext(options: [
+        .workingColorSpace: NSNull(),
+        .outputColorSpace: NSNull()
+    ])
 
     // MARK: Init
 
@@ -40,13 +53,13 @@ final class FilterCell: UICollectionViewCell {
 // MARK: Configuration
 
 extension FilterCell {
-    func configure(with viewModel: FilterCellViewModel, originalThumbnail: UIImage?) {
+    func configure(with viewModel: FilterCellViewModel, originalThumbnail: UIImage?, videoId: String?) {
         self.viewModel = viewModel
         title.text = viewModel.name
         
         // Generate filtered thumbnail from original video thumbnail
         if let originalImage = originalThumbnail {
-            generateFilteredThumbnail(from: originalImage, filter: viewModel.filter)
+            generateFilteredThumbnail(from: originalImage, filter: viewModel.filter, videoId: videoId)
         } else {
             // Fallback to colored background based on filter category
             thumbnailView.image = nil
@@ -56,22 +69,59 @@ extension FilterCell {
         isChoosed = viewModel.isSelected
     }
     
-    private func generateFilteredThumbnail(from originalImage: UIImage, filter: VideoFilter) {
-        // Apply filter to the original image (no resizing here)
+    private func generateFilteredThumbnail(from originalImage: UIImage, filter: VideoFilter, videoId: String?) {
+        // Create cache key based on filter, video ID, and image size
+        let imageContentHash = contentHash(for: originalImage, videoId: videoId)
+        let cacheKey = "\(filter.rawValue)_\(imageContentHash)" as NSString
+        
+        // Check cache first
+        if let cachedImage = Self.filteredThumbnailCache.object(forKey: cacheKey) {
+            thumbnailView.image = cachedImage
+            thumbnailView.backgroundColor = .clear
+            return
+        }
+        
+        // Apply filter to the original image
         if filter == .none {
             thumbnailView.image = originalImage
             thumbnailView.backgroundColor = .clear
+            // Cache the original image for "none" filter
+            Self.filteredThumbnailCache.setObject(originalImage, forKey: cacheKey)
+            Self.addCacheKey(String(cacheKey))
         } else {
-            applyFilter(filter, to: originalImage) { [weak self] filteredImage in
-                DispatchQueue.main.async {
-                    self?.thumbnailView.image = filteredImage ?? originalImage
-                    self?.thumbnailView.backgroundColor = .clear
+            // Show original image immediately while processing
+            thumbnailView.image = originalImage
+            thumbnailView.backgroundColor = .clear
+            
+            // Apply filter on background queue
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                self?.applyFilter(filter, to: originalImage, cacheKey: cacheKey) { filteredImage in
+                    DispatchQueue.main.async {
+                        // Only update if this cell still represents the same filter
+                        if self?.viewModel?.filter == filter {
+                            self?.thumbnailView.image = filteredImage ?? originalImage
+                            self?.thumbnailView.backgroundColor = .clear
+                        }
+                    }
                 }
             }
         }
     }
     
-    private func applyFilter(_ filter: VideoFilter, to image: UIImage, completion: @escaping (UIImage?) -> Void) {
+    private func contentHash(for image: UIImage, videoId: String?) -> String {
+        // Combine video ID with image size for unique hash per video
+        let size = image.size
+        let sizeString = "\(Int(size.width))x\(Int(size.height))"
+        
+        if let videoId = videoId {
+            return "\(videoId)_\(sizeString)"
+        } else {
+            // Fallback to timestamp-based hash if no video ID
+            return "\(Date().timeIntervalSince1970)_\(sizeString)"
+        }
+    }
+    
+    private func applyFilter(_ filter: VideoFilter, to image: UIImage, cacheKey: NSString, completion: @escaping (UIImage?) -> Void) {
         guard let ciFilterName = filter.ciFilterName,
               let ciImage = CIImage(image: image),
               let ciFilter = CIFilter(name: ciFilterName) else {
@@ -93,13 +143,18 @@ extension FilterCell {
             return
         }
         
-        let context = CIContext()
-        guard let cgImage = context.createCGImage(outputImage, from: outputImage.extent) else {
+        // Use shared context for better performance
+        guard let cgImage = Self.sharedCIContext.createCGImage(outputImage, from: outputImage.extent) else {
             completion(image)
             return
         }
         
         let filteredImage = UIImage(cgImage: cgImage)
+        
+        // Cache the result
+        Self.filteredThumbnailCache.setObject(filteredImage, forKey: cacheKey)
+        Self.addCacheKey(String(cacheKey))
+        
         completion(filteredImage)
     }
     
@@ -121,7 +176,7 @@ extension FilterCell {
 
 // MARK: UI
 
-fileprivate extension FilterCell {
+extension FilterCell {
     func setupUI() {
         contentView.addSubview(thumbnailView)
         contentView.addSubview(title)
@@ -176,5 +231,75 @@ fileprivate extension FilterCell {
         label.textAlignment = .center
         label.numberOfLines = 2
         return label
+    }
+    
+    // MARK: Cache Management
+    
+    private static func addCacheKey(_ key: String) {
+        cacheKeysQueue.async(flags: .barrier) {
+            cacheKeys.insert(key)
+        }
+    }
+    
+    private static func removeCacheKey(_ key: String) {
+        cacheKeysQueue.async(flags: .barrier) {
+            cacheKeys.remove(key)
+        }
+    }
+    
+    static func clearThumbnailCache() {
+        filteredThumbnailCache.removeAllObjects()
+        cacheKeysQueue.async(flags: .barrier) {
+            cacheKeys.removeAll()
+        }
+    }
+    
+    static func setCacheLimit(_ limit: Int) {
+        filteredThumbnailCache.countLimit = limit
+    }
+    
+    // Clear cache for specific video when done editing
+    static func clearCacheForVideo(_ videoId: String) {
+        cacheKeysQueue.sync {
+            let keysToRemove = cacheKeys.filter { $0.contains(videoId) }
+            
+            for key in keysToRemove {
+                filteredThumbnailCache.removeObject(forKey: key as NSString)
+            }
+            
+            cacheKeysQueue.async(flags: .barrier) {
+                for key in keysToRemove {
+                    cacheKeys.remove(key)
+                }
+            }
+        }
+    }
+    
+    // Clear old cache entries (keep only recent videos)
+    static func clearOldCacheEntries(keepRecentCount: Int = 3) {
+        cacheKeysQueue.sync {
+            // Group keys by video ID
+            var videoIds = Set<String>()
+            for key in cacheKeys {
+                if let videoId = extractVideoId(from: key) {
+                    videoIds.insert(videoId)
+                }
+            }
+            
+            // If we have more videos than keepRecentCount, clear all cache
+            // A more sophisticated approach would track access times
+            if videoIds.count > keepRecentCount {
+                clearThumbnailCache()
+            }
+        }
+    }
+    
+    private static func extractVideoId(from cacheKey: String) -> String? {
+        // Cache key format: "filterType_videoId_resolution"
+        let components = cacheKey.components(separatedBy: "_")
+        if components.count >= 2 {
+            return components[1]
+        }
+        return nil
     }
 }

@@ -47,12 +47,14 @@ public final class VideoEditorViewController: UIViewController {
 
     private let store: VideoEditorStore
     private let viewFactory: VideoEditorViewFactoryProtocol
+    private let videoId: String?
 
     // MARK: Init
 
-    public init(asset: AVAsset, videoEdit: VideoEdit? = nil) {
+    public init(asset: AVAsset, videoEdit: VideoEdit? = nil, videoId: String? = nil) {
         self.store = VideoEditorStore(asset: asset, videoEdit: videoEdit)
         self.viewFactory = VideoEditorViewFactory()
+        self.videoId = videoId
 
         super.init(nibName: nil, bundle: nil)
     }
@@ -68,6 +70,9 @@ public final class VideoEditorViewController: UIViewController {
 
         setupUI()
         setupBindings()
+        
+        // Configure filter thumbnail cache
+        FilterCell.setCacheLimit(50) // Cache up to 50 filtered thumbnails
 
         #if targetEnvironment(simulator)
         print("Warning: Cropping only works on real device and has been disabled on simulator")
@@ -356,7 +361,7 @@ fileprivate extension VideoEditorViewController {
             debugPrint("Creating SpeedController with store.speed: \(store.speed)")
             return viewFactory.makeSpeedVideoControlViewController(speed: store.speed)
         case .filter:
-            return viewFactory.makeFilterVideoControlViewController(selectedFilter: store.filter, thumbnail: videoThumbnail)
+            return viewFactory.makeFilterVideoControlViewController(selectedFilter: store.filter, thumbnail: videoThumbnail, videoId: videoId)
         case .trim:
             return viewFactory.makeTrimVideoControlViewController(asset: store.originalAsset, trimPositions: store.trimPositions)
         }
