@@ -12,6 +12,7 @@ public enum VideoControl: CaseIterable {
     case trim
     case crop
     case filter
+    case audio
     
     public var title: String {
         switch self {
@@ -23,6 +24,8 @@ public enum VideoControl: CaseIterable {
             return "Crop"
         case .filter:
             return "Filters"
+        case .audio:
+            return "Audio"
         }
     }
     
@@ -40,6 +43,8 @@ public enum VideoControl: CaseIterable {
             return 210.0
         case .filter:
             return 284.0
+        case .audio:
+            return 320.0
         }
     }
 }

@@ -27,6 +27,8 @@ final class VideoControlCellViewModel: NSObject {
             return "Crop"
         case .filter:
             return "Filter"
+        case .audio:
+            return "Audio"
         }
     }
 
@@ -40,6 +42,8 @@ final class VideoControlCellViewModel: NSObject {
             return "VideoControls/Crop"
         case .filter:
             return "VideoControls/Filter"  // Không có 's' ở cuối
+        case .audio:
+            return "VideoControls/Audio"
         }
     }
 }

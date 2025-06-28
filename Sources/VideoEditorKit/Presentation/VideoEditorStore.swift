@@ -38,6 +38,11 @@ public final class VideoEditorStore {
     @Published var croppingPreset: CroppingPreset?
 
     @Published var filter: VideoFilter?
+    
+    // Audio properties
+    @Published var audioReplacement: AudioReplacement?
+    @Published var volume: Float = 1.0
+    @Published var isMuted: Bool = false
 
     @Published var videoEdit: VideoEdit
 
@@ -59,6 +64,11 @@ public final class VideoEditorStore {
         self.generator = VideoTimelineGenerator()
         self.editedPlayerItem = AVPlayerItem(asset: asset)
         self.videoEdit = videoEdit ?? VideoEdit()
+        
+        // Initialize audio properties from VideoEdit
+        self.audioReplacement = self.videoEdit.audioReplacement
+        self.volume = self.videoEdit.volume
+        self.isMuted = self.videoEdit.isMuted
 
         setupBindings()
     }
@@ -75,6 +85,11 @@ public final class VideoEditorStore {
         self.generator = generator
         self.editedPlayerItem = AVPlayerItem(asset: asset)
         self.videoEdit = videoEdit ?? VideoEdit()
+        
+        // Initialize audio properties from VideoEdit
+        self.audioReplacement = self.videoEdit.audioReplacement
+        self.volume = self.videoEdit.volume
+        self.isMuted = self.videoEdit.isMuted
 
         setupBindings()
     }
@@ -148,6 +163,45 @@ fileprivate extension VideoEditorStore {
             .compactMap { [weak self] filter in
                 guard let self = self else { return nil }
                 return VideoEdit.filterLens.to(filter, self.videoEdit)
+            }
+            .assign(to: \.videoEdit, weakly: self)
+            .store(in: &cancellables)
+
+        $audioReplacement
+            .dropFirst(1)
+            .filter { [weak self] audioReplacement in
+                guard let self = self else { return false }
+                return audioReplacement?.title != self.videoEdit.audioReplacement?.title
+            }
+            .compactMap { [weak self] audioReplacement in
+                guard let self = self else { return nil }
+                return VideoEdit.audioReplacementLens.to(audioReplacement, self.videoEdit)
+            }
+            .assign(to: \.videoEdit, weakly: self)
+            .store(in: &cancellables)
+            
+        $volume
+            .dropFirst(1)
+            .filter { [weak self] volume in
+                guard let self = self else { return false }
+                return volume != self.videoEdit.volume
+            }
+            .compactMap { [weak self] volume in
+                guard let self = self else { return nil }
+                return VideoEdit.volumeLens.to(volume, self.videoEdit)
+            }
+            .assign(to: \.videoEdit, weakly: self)
+            .store(in: &cancellables)
+            
+        $isMuted
+            .dropFirst(1)
+            .filter { [weak self] isMuted in
+                guard let self = self else { return false }
+                return isMuted != self.videoEdit.isMuted
+            }
+            .compactMap { [weak self] isMuted in
+                guard let self = self else { return nil }
+                return VideoEdit.isMutedLens.to(isMuted, self.videoEdit)
             }
             .assign(to: \.videoEdit, weakly: self)
             .store(in: &cancellables)

@@ -17,6 +17,9 @@ extension VideoEdit {
             edit.speedRate = speedRate
             edit.trimPositions = previousEdit.trimPositions
             edit.filter = previousEdit.filter
+            edit.audioReplacement = previousEdit.audioReplacement
+            edit.volume = previousEdit.volume
+            edit.isMuted = previousEdit.isMuted
             return edit
         }
     )
@@ -29,6 +32,9 @@ extension VideoEdit {
             edit.speedRate = previousEdit.speedRate
             edit.trimPositions = trimPositions
             edit.filter = previousEdit.filter
+            edit.audioReplacement = previousEdit.audioReplacement
+            edit.volume = previousEdit.volume
+            edit.isMuted = previousEdit.isMuted
             return edit
         }
     )
@@ -41,6 +47,9 @@ extension VideoEdit {
             edit.speedRate = previousEdit.speedRate
             edit.trimPositions = previousEdit.trimPositions
             edit.filter = previousEdit.filter
+            edit.audioReplacement = previousEdit.audioReplacement
+            edit.volume = previousEdit.volume
+            edit.isMuted = previousEdit.isMuted
             return edit
         }
     )
@@ -53,6 +62,54 @@ extension VideoEdit {
             edit.speedRate = previousEdit.speedRate
             edit.trimPositions = previousEdit.trimPositions
             edit.filter = filter
+            edit.audioReplacement = previousEdit.audioReplacement
+            edit.volume = previousEdit.volume
+            edit.isMuted = previousEdit.isMuted
+            return edit
+        }
+    )
+    
+    static let audioReplacementLens = Lens<VideoEdit, AudioReplacement?>(
+        from: { $0.audioReplacement },
+        to: { audioReplacement, previousEdit in
+            var edit = VideoEdit()
+            edit.croppingPreset = previousEdit.croppingPreset
+            edit.speedRate = previousEdit.speedRate
+            edit.trimPositions = previousEdit.trimPositions
+            edit.filter = previousEdit.filter
+            edit.audioReplacement = audioReplacement
+            edit.volume = previousEdit.volume
+            edit.isMuted = previousEdit.isMuted
+            return edit
+        }
+    )
+    
+    static let volumeLens = Lens<VideoEdit, Float>(
+        from: { $0.volume },
+        to: { volume, previousEdit in
+            var edit = VideoEdit()
+            edit.croppingPreset = previousEdit.croppingPreset
+            edit.speedRate = previousEdit.speedRate
+            edit.trimPositions = previousEdit.trimPositions
+            edit.filter = previousEdit.filter
+            edit.audioReplacement = previousEdit.audioReplacement
+            edit.volume = volume
+            edit.isMuted = previousEdit.isMuted
+            return edit
+        }
+    )
+    
+    static let isMutedLens = Lens<VideoEdit, Bool>(
+        from: { $0.isMuted },
+        to: { isMuted, previousEdit in
+            var edit = VideoEdit()
+            edit.croppingPreset = previousEdit.croppingPreset
+            edit.speedRate = previousEdit.speedRate
+            edit.trimPositions = previousEdit.trimPositions
+            edit.filter = previousEdit.filter
+            edit.audioReplacement = previousEdit.audioReplacement
+            edit.volume = previousEdit.volume
+            edit.isMuted = isMuted
             return edit
         }
     )

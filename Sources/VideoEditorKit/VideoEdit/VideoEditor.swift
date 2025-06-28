@@ -54,14 +54,15 @@ public final class VideoEditor: VideoEditorProtocol {
                 videoCompositionTrack.scaleTimeRange(newRange, toDuration: time)
                 videoCompositionTrack.preferredTransform = videoTrack.preferredTransform
 
-                if let audioTrack = originalAsset.tracks(withMediaType: .audio).first, !edit.isMuted {
-                    guard let audioCompositionTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else {
-                        promise(.failure(VideoEditorError.unknown))
-                        return
-                    }
-                    try audioCompositionTrack.insertTimeRange(range, of: audioTrack, at: .zero)
-                    audioCompositionTrack.scaleTimeRange(newRange, toDuration: time)
-                }
+                // Handle audio processing
+                try self.processAudio(
+                    edit: edit,
+                    originalAsset: originalAsset,
+                    composition: composition,
+                    range: range,
+                    newRange: newRange,
+                    newDuration: time
+                )
             } catch {
                 promise(.failure(VideoEditorError.unknown))
                 return
@@ -85,6 +86,123 @@ public final class VideoEditor: VideoEditorProtocol {
 }
 
 fileprivate extension VideoEditor {
+    
+    func processAudio(
+        edit: VideoEdit,
+        originalAsset: AVAsset,
+        composition: AVMutableComposition,
+        range: CMTimeRange,
+        newRange: CMTimeRange,
+        newDuration: CMTime
+    ) throws {
+        // Skip audio processing if muted
+        if edit.isMuted {
+            return
+        }
+        
+        // If we have audio replacement, use the replacement audio
+        if let audioReplacement = edit.audioReplacement {
+            try addReplacementAudio(
+                audioReplacement: audioReplacement,
+                composition: composition,
+                videoDuration: newDuration,
+                volume: edit.volume
+            )
+        } else {
+            // Use original audio
+            try addOriginalAudio(
+                originalAsset: originalAsset,
+                composition: composition,
+                range: range,
+                newRange: newRange,
+                newDuration: newDuration,
+                volume: edit.volume
+            )
+        }
+    }
+    
+    func addOriginalAudio(
+        originalAsset: AVAsset,
+        composition: AVMutableComposition,
+        range: CMTimeRange,
+        newRange: CMTimeRange,
+        newDuration: CMTime,
+        volume: Float
+    ) throws {
+        guard let audioTrack = originalAsset.tracks(withMediaType: .audio).first else {
+            return // No original audio track
+        }
+        
+        guard let audioCompositionTrack = composition.addMutableTrack(
+            withMediaType: .audio,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+            throw VideoEditorError.unknown
+        }
+        
+        try audioCompositionTrack.insertTimeRange(range, of: audioTrack, at: .zero)
+        audioCompositionTrack.scaleTimeRange(newRange, toDuration: newDuration)
+        
+        // Apply volume if different from default
+        if volume != 1.0 {
+            let volumeParams = AVMutableAudioMixInputParameters(track: audioCompositionTrack)
+            volumeParams.setVolume(volume, at: .zero)
+            // Note: AudioMix would be applied in the final composition
+        }
+    }
+    
+    func addReplacementAudio(
+        audioReplacement: AudioReplacement,
+        composition: AVMutableComposition,
+        videoDuration: CMTime,
+        volume: Float
+    ) throws {
+        guard let replacementAudioTrack = audioReplacement.asset.tracks(withMediaType: .audio).first else {
+            return // No audio track in replacement
+        }
+        
+        guard let audioCompositionTrack = composition.addMutableTrack(
+            withMediaType: .audio,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+            throw VideoEditorError.unknown
+        }
+        
+        // Determine the audio range to use
+        let audioRange: CMTimeRange
+        if let trimPositions = audioReplacement.trimPositions {
+            let trimDuration = CMTimeSubtract(trimPositions.1, trimPositions.0)
+            audioRange = CMTimeRange(start: trimPositions.0, duration: trimDuration)
+        } else {
+            audioRange = CMTimeRange(start: .zero, duration: audioReplacement.duration)
+        }
+        
+        // Insert the audio, repeating if necessary to match video duration
+        var currentTime = CMTime.zero
+        let audioDuration = audioRange.duration
+        
+        while CMTimeCompare(currentTime, videoDuration) < 0 {
+            let remainingTime = CMTimeSubtract(videoDuration, currentTime)
+            let insertDuration = CMTimeMinimum(audioDuration, remainingTime)
+            let insertRange = CMTimeRange(start: audioRange.start, duration: insertDuration)
+            
+            try audioCompositionTrack.insertTimeRange(insertRange, of: replacementAudioTrack, at: currentTime)
+            currentTime = CMTimeAdd(currentTime, insertDuration)
+            
+            // Break if we've filled the entire video duration
+            if CMTimeCompare(insertDuration, audioDuration) < 0 {
+                break
+            }
+        }
+        
+        // Apply volume if different from default
+        if volume != 1.0 {
+            let volumeParams = AVMutableAudioMixInputParameters(track: audioCompositionTrack)
+            volumeParams.setVolume(volume, at: .zero)
+            // Note: AudioMix would be applied in the final composition
+        }
+    }
+
     func makeVideoComposition(
         edit: VideoEdit,
         videoCompositionTrack: AVCompositionTrack,

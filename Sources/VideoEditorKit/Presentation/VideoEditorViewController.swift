@@ -364,6 +364,12 @@ fileprivate extension VideoEditorViewController {
             return viewFactory.makeFilterVideoControlViewController(selectedFilter: store.filter, thumbnail: videoThumbnail, videoId: videoId)
         case .trim:
             return viewFactory.makeTrimVideoControlViewController(asset: store.originalAsset, trimPositions: store.trimPositions)
+        case .audio:
+            return viewFactory.makeAudioControlViewController(
+                audioReplacement: store.audioReplacement,
+                volume: store.volume,
+                isMuted: store.isMuted
+            )
         }
     }
     
@@ -403,6 +409,23 @@ fileprivate extension VideoEditorViewController {
                 trimController.$trimPositions
                     .dropFirst(1)
                     .assign(to: \.trimPositions, weakly: store)
+                    .store(in: &cancellables)
+            }
+        case .audio:
+            if let audioController = controller as? AudioControlViewController {
+                audioController.$selectedAudioReplacement
+                    .dropFirst(1)
+                    .assign(to: \.audioReplacement, weakly: store)
+                    .store(in: &cancellables)
+                
+                audioController.$volume
+                    .dropFirst(1)
+                    .assign(to: \.volume, weakly: store)
+                    .store(in: &cancellables)
+                
+                audioController.$isMuted
+                    .dropFirst(1)
+                    .assign(to: \.isMuted, weakly: store)
                     .store(in: &cancellables)
             }
         }
