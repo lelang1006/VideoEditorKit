@@ -29,8 +29,9 @@ public final class VideoEditorViewController: UIViewController {
     private lazy var currentTimeLabel: UILabel = makeCurrentTimeLabel()
     private lazy var durationLabel: UILabel = makeDurationLabel()
 
+    private lazy var muteButton: UIButton = makeMuteButton()
     private lazy var fullscreenButton: UIButton = makeFullscreenButton()
-    private lazy var controlsStack: UIStackView = makeControlsStack()
+    private lazy var controlsView: UIView = makeControlsView()
     private lazy var videoTimelineViewController: VideoTimelineViewController = makeVideoTimelineViewController()
     private lazy var videoControlListController: VideoControlListController = makeVideoControlListControllers()
 
@@ -107,6 +108,10 @@ fileprivate extension VideoEditorViewController {
                 self.videoPlayerController.load(item: item, autoPlay: false)
                 self.videoTimelineViewController.generateTimeline(for: item.asset)
                 self.subscribeToDurationUpdate(for: item)
+                // Update mute button icon when new item is loaded
+                DispatchQueue.main.async {
+                    self.updateMuteButtonIcon()
+                }
             }
             .store(in: &cancellables)
 
@@ -120,6 +125,14 @@ fileprivate extension VideoEditorViewController {
             .sink { [weak self] isPlaying in
                 guard let self = self else { return }
                 self.playButton.isPaused = !isPlaying
+            }
+            .store(in: &cancellables)
+
+        // Monitor player mute state and update button icon
+        videoPlayerController.player.publisher(for: \.isMuted)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                self.updateMuteButtonIcon()
             }
             .store(in: &cancellables)
 
@@ -174,7 +187,7 @@ fileprivate extension VideoEditorViewController {
         view.backgroundColor = .background
 
         add(videoPlayerController)
-        view.addSubview(controlsStack)
+        view.addSubview(controlsView)
         add(videoTimelineViewController)
         add(videoControlListController)
     }
@@ -183,17 +196,38 @@ fileprivate extension VideoEditorViewController {
         videoPlayerController.view.autoPinEdge(toSuperviewEdge: .top)
         videoPlayerController.view.autoPinEdge(toSuperviewEdge: .left)
         videoPlayerController.view.autoPinEdge(toSuperviewEdge: .right)
-        videoPlayerController.view.autoPinEdge(.bottom, to: .top, of: controlsStack)
+        videoPlayerController.view.autoPinEdge(.bottom, to: .top, of: controlsView)
 
+        // Set button dimensions
         playButton.autoSetDimension(.height, toSize: 44.0)
         playButton.autoSetDimension(.width, toSize: 44.0)
+        muteButton.autoSetDimension(.height, toSize: 44.0)
+        muteButton.autoSetDimension(.width, toSize: 44.0)
         fullscreenButton.autoSetDimension(.height, toSize: 44.0)
         fullscreenButton.autoSetDimension(.width, toSize: 44.0)
 
-        controlsStack.autoSetDimension(.height, toSize: 44.0)
-        controlsStack.autoPinEdge(toSuperviewEdge: .left)
-        controlsStack.autoPinEdge(toSuperviewEdge: .right)
-        controlsStack.autoPinEdge(.bottom, to: .top, of: videoTimelineViewController.view)
+        // Controls view constraints
+        controlsView.autoSetDimension(.height, toSize: 44.0)
+        controlsView.autoPinEdge(toSuperviewEdge: .left)
+        controlsView.autoPinEdge(toSuperviewEdge: .right)
+        controlsView.autoPinEdge(.bottom, to: .top, of: videoTimelineViewController.view)
+        
+        // Layout buttons in controls view
+        // Play button - left side with 16pt margin
+        playButton.autoPinEdge(toSuperviewEdge: .left, withInset: 16)
+        playButton.autoAlignAxis(toSuperviewAxis: .horizontal)
+        
+        // Fullscreen button - right side with 16pt margin
+        fullscreenButton.autoPinEdge(toSuperviewEdge: .right, withInset: 16)
+        fullscreenButton.autoAlignAxis(toSuperviewAxis: .horizontal)
+        
+        // Mute button - 8pt to the left of fullscreen button
+        muteButton.autoPinEdge(.right, to: .left, of: fullscreenButton, withOffset: -8)
+        muteButton.autoAlignAxis(toSuperviewAxis: .horizontal)
+        
+        // Time stack - centered horizontally
+        timeStack.autoAlignAxis(toSuperviewAxis: .horizontal)
+        timeStack.autoAlignAxis(toSuperviewAxis: .vertical)
 
         videoTimelineViewController.view.autoSetDimension(.height, toSize: 220.0)
         videoTimelineViewController.view.autoPinEdge(toSuperviewEdge: .left)
@@ -300,20 +334,26 @@ fileprivate extension VideoEditorViewController {
         return button
     }
 
-    func makeControlsStack() -> UIStackView {
-        let stack = UIStackView(arrangedSubviews: [
-            playButton,
-            timeStack,
-            fullscreenButton
-        ])
+    func makeMuteButton() -> UIButton {
+        let button = UIButton()
+        let speakerImage = UIImage(named: "Speaker", in: .module, compatibleWith: nil)
+        button.addTarget(self, action: #selector(muteButtonTapped), for: .touchUpInside)
+        button.setImage(speakerImage, for: .normal)
+        button.tintColor = #colorLiteral(red: 0.1137254902, green: 0.1137254902, blue: 0.1215686275, alpha: 1)
+        button.imageEdgeInsets = .init(top: 14, left: 13, bottom: 14, right: 13)
+        return button
+    }
 
-        stack.isLayoutMarginsRelativeArrangement = true
-        stack.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: 30, bottom: 0, trailing: 30)
-
-        stack.axis = .horizontal
-        stack.distribution = .equalSpacing
-
-        return stack
+    func makeControlsView() -> UIView {
+        let containerView = UIView()
+        
+        // Add all subviews
+        containerView.addSubview(playButton)
+        containerView.addSubview(timeStack)
+        containerView.addSubview(muteButton)
+        containerView.addSubview(fullscreenButton)
+        
+        return containerView
     }
 
     func makeVideoTimelineViewController() -> VideoTimelineViewController {
@@ -449,6 +489,13 @@ fileprivate extension VideoEditorViewController {
             self.setupNavigationItems()
         })
     }
+
+    func updateMuteButtonIcon() {
+        let isMuted = videoPlayerController.player.isMuted
+        let imageName = isMuted ? "SpeakerMute" : "Speaker"
+        let image = UIImage(named: imageName, in: .module, compatibleWith: nil)
+        muteButton.setImage(image, for: .normal)
+    }
 }
 
 // MARK: Actions
@@ -464,6 +511,11 @@ fileprivate extension VideoEditorViewController {
         } else {
             videoPlayerController.play()
         }
+    }
+
+    @objc func muteButtonTapped() {
+        videoPlayerController.player.isMuted.toggle()
+        updateMuteButtonIcon()
     }
 
     @objc func save() {
