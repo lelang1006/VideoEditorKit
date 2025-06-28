@@ -71,6 +71,7 @@ public final class VideoEditorViewController: UIViewController {
 
         setupUI()
         setupBindings()
+        configureAudioSession() // Configure audio session here
         
         // Configure filter thumbnail cache
         FilterCell.setCacheLimit(50) // Cache up to 50 filtered thumbnails
@@ -214,15 +215,15 @@ fileprivate extension VideoEditorViewController {
         
         // Layout buttons in controls view
         // Play button - left side with 16pt margin
-        playButton.autoPinEdge(toSuperviewEdge: .left, withInset: 16)
+        playButton.autoPinEdge(toSuperviewEdge: .left, withInset: 8)
         playButton.autoAlignAxis(toSuperviewAxis: .horizontal)
         
         // Fullscreen button - right side with 16pt margin
-        fullscreenButton.autoPinEdge(toSuperviewEdge: .right, withInset: 16)
+        fullscreenButton.autoPinEdge(toSuperviewEdge: .right, withInset: 8)
         fullscreenButton.autoAlignAxis(toSuperviewAxis: .horizontal)
         
         // Mute button - 8pt to the left of fullscreen button
-        muteButton.autoPinEdge(.right, to: .left, of: fullscreenButton, withOffset: -8)
+        muteButton.autoPinEdge(.right, to: .left, of: fullscreenButton, withOffset: 0)
         muteButton.autoAlignAxis(toSuperviewAxis: .horizontal)
         
         // Time stack - centered horizontally
@@ -587,6 +588,18 @@ fileprivate extension VideoEditorViewController {
         } catch {
             print("Error generating thumbnail: \(error)")
             return nil
+        }
+    }
+    
+    func configureAudioSession() {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            // Use playback category to ensure audio plays even when device is muted
+            try audioSession.setCategory(.playback, mode: .moviePlayback, options: [.defaultToSpeaker])
+            try audioSession.setActive(true)
+            print("🔊 Audio session configured for media playback")
+        } catch {
+            print("❌ Failed to configure audio session: \(error)")
         }
     }
 }
