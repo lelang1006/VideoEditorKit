@@ -1,0 +1,4 @@
+module VideoPlayer {
+header "VideoPlayer-Swift.h"
+export *
+}
