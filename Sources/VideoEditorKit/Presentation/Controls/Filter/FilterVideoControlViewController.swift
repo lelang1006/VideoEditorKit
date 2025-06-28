@@ -43,7 +43,7 @@ final class FilterVideoControlViewController: BaseVideoControlViewController {
     
     private var currentCategory: FilterCategory = .photoEffects {
         didSet {
-            loadFilters()
+            loadFilters(with: selectedFilter)
         }
     }
 
@@ -70,7 +70,7 @@ final class FilterVideoControlViewController: BaseVideoControlViewController {
         
         setupSegmentedControl()
         setupCollectionView()
-        loadFilters()
+        loadFilters(with: selectedFilter)
         setupBindings()
     }
 
@@ -80,14 +80,14 @@ final class FilterVideoControlViewController: BaseVideoControlViewController {
 
     override func onApplyAction() {
         debugPrint("onApplyAction - saving filter: \(selectedFilter?.name ?? "none") as initialFilter")
-        initialFilter = selectedFilter
+        super.onApplyAction()
     }
 }
 
 // MARK: Data
 
 fileprivate extension FilterVideoControlViewController {
-    func loadFilters() {
+    func loadFilters(with selectedFilter: VideoFilter? = nil) {
         let filters = currentCategory.filters
         let viewModels = filters.map { filter in
             FilterCellViewModel(
@@ -111,8 +111,8 @@ fileprivate extension FilterVideoControlViewController {
         // Bind selectedFilter changes để reload data với selection state mới
         $selectedFilter
             .dropFirst(1)
-            .sink { [weak self] _ in
-                self?.loadFilters()
+            .sink { [weak self] newSelectedFilter in
+                self?.loadFilters(with: newSelectedFilter)
             }
             .store(in: &cancellables)
     }
