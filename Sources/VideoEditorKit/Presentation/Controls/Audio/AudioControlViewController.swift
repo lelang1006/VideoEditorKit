@@ -79,9 +79,6 @@ final class AudioControlViewController: BaseVideoControlViewController {
         isMuted = false
     }
 
-    override func onApplyAction() {
-        // Store current values as initial
-    }
 }
 
 // MARK: - Setup
