@@ -7,7 +7,7 @@
 
 import AVFoundation
 import VideoPlayer
-
+import UIKit
 // Internal protocol - không cần public
 protocol VideoEditorViewFactoryProtocol {
     func makeVideoPlayerController() -> VideoPlayerController
@@ -15,7 +15,7 @@ protocol VideoEditorViewFactoryProtocol {
     func makeVideoControlListController(store: VideoEditorStore) -> VideoControlListController
     func makeCropVideoControlViewController(croppingPreset: CroppingPreset?) -> CropVideoControlViewController
     func makeSpeedVideoControlViewController(speed: Double) -> SpeedVideoControlViewController
-    func makeFilterVideoControlViewController(selectedFilter: VideoFilter?) -> FilterVideoControlViewController
+    func makeFilterVideoControlViewController(selectedFilter: VideoFilter?, thumbnail: UIImage?) -> FilterVideoControlViewController
     func makeTrimVideoControlViewController(asset: AVAsset, trimPositions: (Double, Double)) -> TrimVideoControlViewController
 }
 
@@ -46,10 +46,10 @@ public final class VideoEditorViewFactory: VideoEditorViewFactoryProtocol {
         SpeedVideoControlViewController(speed: speed)
     }
 
-    func makeFilterVideoControlViewController(selectedFilter: VideoFilter?) -> FilterVideoControlViewController {
-        FilterVideoControlViewController(selectedFilter: selectedFilter)
+    func makeFilterVideoControlViewController(selectedFilter: VideoFilter?, thumbnail: UIImage?) -> FilterVideoControlViewController {
+        return FilterVideoControlViewController(selectedFilter: selectedFilter, originalThumbnail: thumbnail)
     }
-
+    
     func makeTrimVideoControlViewController(asset: AVAsset, trimPositions: (Double, Double)) -> TrimVideoControlViewController {
         TrimVideoControlViewController(asset: asset, trimPositions: trimPositions)
     }

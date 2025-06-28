@@ -12,6 +12,5 @@ struct FilterCellViewModel: Hashable {
     let isSelected: Bool
     
     var name: String { filter.name }
-    var thumbnailImageName: String { filter.thumbnailImageName }
     var category: FilterCategory { filter.category }
 }

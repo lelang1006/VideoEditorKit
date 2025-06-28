@@ -94,10 +94,6 @@ public enum VideoFilter: String, CaseIterable {
         }
     }
     
-    public var thumbnailImageName: String {
-        return "filter-\(rawValue)"
-    }
-    
     public var category: FilterCategory {
         switch self {
         case .none:

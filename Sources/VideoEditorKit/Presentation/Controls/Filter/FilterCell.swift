@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import CoreImage
 
 final class FilterCell: UICollectionViewCell {
 
@@ -19,7 +20,6 @@ final class FilterCell: UICollectionViewCell {
 
     // MARK: Private Properties
 
-    private lazy var stack: UIStackView = makeStackView()
     private lazy var title: UILabel = makeTitle()
     private lazy var thumbnailView: UIImageView = makeThumbnailView()
 
@@ -40,13 +40,13 @@ final class FilterCell: UICollectionViewCell {
 // MARK: Configuration
 
 extension FilterCell {
-    func configure(with viewModel: FilterCellViewModel) {
+    func configure(with viewModel: FilterCellViewModel, originalThumbnail: UIImage?) {
         self.viewModel = viewModel
         title.text = viewModel.name
         
-        // Set thumbnail based on filter type
-        if let thumbnailImage = UIImage(named: viewModel.thumbnailImageName, in: .module, compatibleWith: nil) {
-            thumbnailView.image = thumbnailImage
+        // Generate filtered thumbnail from original video thumbnail
+        if let originalImage = originalThumbnail {
+            generateFilteredThumbnail(from: originalImage, filter: viewModel.filter)
         } else {
             // Fallback to colored background based on filter category
             thumbnailView.image = nil
@@ -54,6 +54,53 @@ extension FilterCell {
         }
         
         isChoosed = viewModel.isSelected
+    }
+    
+    private func generateFilteredThumbnail(from originalImage: UIImage, filter: VideoFilter) {
+        // Apply filter to the original image (no resizing here)
+        if filter == .none {
+            thumbnailView.image = originalImage
+            thumbnailView.backgroundColor = .clear
+        } else {
+            applyFilter(filter, to: originalImage) { [weak self] filteredImage in
+                DispatchQueue.main.async {
+                    self?.thumbnailView.image = filteredImage ?? originalImage
+                    self?.thumbnailView.backgroundColor = .clear
+                }
+            }
+        }
+    }
+    
+    private func applyFilter(_ filter: VideoFilter, to image: UIImage, completion: @escaping (UIImage?) -> Void) {
+        guard let ciFilterName = filter.ciFilterName,
+              let ciImage = CIImage(image: image),
+              let ciFilter = CIFilter(name: ciFilterName) else {
+            completion(image)
+            return
+        }
+        
+        // Configure filter
+        ciFilter.setValue(ciImage, forKey: kCIInputImageKey)
+        
+        // Apply default parameters if needed
+        for (key, value) in filter.defaultParameters {
+            ciFilter.setValue(value, forKey: key)
+        }
+        
+        // Render filtered image
+        guard let outputImage = ciFilter.outputImage else {
+            completion(image)
+            return
+        }
+        
+        let context = CIContext()
+        guard let cgImage = context.createCGImage(outputImage, from: outputImage.extent) else {
+            completion(image)
+            return
+        }
+        
+        let filteredImage = UIImage(cgImage: cgImage)
+        completion(filteredImage)
     }
     
     private func backgroundColorForCategory(_ category: FilterCategory) -> UIColor {
@@ -76,8 +123,23 @@ extension FilterCell {
 
 fileprivate extension FilterCell {
     func setupUI() {
-        contentView.addSubview(stack)
-        stack.autoPinEdgesToSuperviewEdges()
+        contentView.addSubview(thumbnailView)
+        contentView.addSubview(title)
+        setupConstraints()
+    }
+    
+    func setupConstraints() {
+        // Image centered horizontally at top with fixed size
+        thumbnailView.autoAlignAxis(toSuperviewAxis: .vertical)
+        thumbnailView.autoPinEdge(toSuperviewEdge: .top)
+        thumbnailView.autoSetDimension(.width, toSize: 60.0)
+        thumbnailView.autoSetDimension(.height, toSize: 60.0)
+        
+        // Label centered horizontally, 8px below image
+        title.autoAlignAxis(toSuperviewAxis: .vertical)
+        title.autoPinEdge(.top, to: .bottom, of: thumbnailView, withOffset: 8.0)
+        title.autoPinEdge(toSuperviewEdge: .left, withInset: 4.0)
+        title.autoPinEdge(toSuperviewEdge: .right, withInset: 4.0)
     }
 
     func updateUI() {
@@ -98,14 +160,15 @@ fileprivate extension FilterCell {
         }
     }
 
-    func makeStackView() -> UIStackView {
-        let stack = UIStackView(arrangedSubviews: [thumbnailView, title])
-        stack.axis = .vertical
-        stack.spacing = 6.0
-        stack.alignment = .center
-        return stack
+    func makeThumbnailView() -> UIImageView {
+        let imageView = UIImageView()
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+        imageView.layer.cornerRadius = 8.0
+        imageView.backgroundColor = .systemGray5
+        return imageView
     }
-
+    
     func makeTitle() -> UILabel {
         let label = UILabel()
         label.font = .systemFont(ofSize: 11.0)
@@ -113,15 +176,5 @@ fileprivate extension FilterCell {
         label.textAlignment = .center
         label.numberOfLines = 2
         return label
-    }
-
-    func makeThumbnailView() -> UIImageView {
-        let imageView = UIImageView()
-        imageView.contentMode = .scaleAspectFill
-        imageView.clipsToBounds = true
-        imageView.layer.cornerRadius = 8.0
-        imageView.backgroundColor = .systemGray5
-        imageView.autoSetDimensions(to: CGSize(width: 60, height: 60))
-        return imageView
     }
 }

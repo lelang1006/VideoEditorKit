@@ -36,6 +36,9 @@ public final class VideoEditorViewController: UIViewController {
 
     // Thêm property để quản lý controller hiện tại
     private var currentVideoControlController: VideoControlProtocol?
+    
+    // Cached thumbnail for filter preview
+    private lazy var videoThumbnail: UIImage? = generateVideoThumbnail()
 
     private var videoControlHeightConstraint: NSLayoutConstraint!
 
@@ -328,7 +331,7 @@ fileprivate extension VideoEditorViewController {
         setupVideoControlBindings(for: controller, videoControl: videoControl)
         
         if controller.view.superview == nil {
-            let height: CGFloat = 210.0
+            let height: CGFloat = videoControl.heightOfVideoControl
             let offset = -(height + view.safeAreaInsets.bottom)
 
             add(controller)
@@ -353,7 +356,7 @@ fileprivate extension VideoEditorViewController {
             debugPrint("Creating SpeedController with store.speed: \(store.speed)")
             return viewFactory.makeSpeedVideoControlViewController(speed: store.speed)
         case .filter:
-            return viewFactory.makeFilterVideoControlViewController(selectedFilter: store.filter)
+            return viewFactory.makeFilterVideoControlViewController(selectedFilter: store.filter, thumbnail: videoThumbnail)
         case .trim:
             return viewFactory.makeTrimVideoControlViewController(asset: store.originalAsset, trimPositions: store.trimPositions)
         }
@@ -470,5 +473,40 @@ fileprivate extension VideoEditorViewController {
         alert.addAction(cancelAction)
 
         present(alert, animated: true)
+    }
+    
+    private func generateVideoThumbnail() -> UIImage? {
+        let imageGenerator = AVAssetImageGenerator(asset: store.originalAsset)
+        imageGenerator.appliesPreferredTrackTransform = true
+        
+        // Calculate size to maintain aspect ratio with minimum dimension of 100
+        guard let videoTrack = store.originalAsset.tracks(withMediaType: .video).first else {
+            return nil
+        }
+        
+        let videoSize = videoTrack.naturalSize.applying(videoTrack.preferredTransform)
+        let videoWidth = abs(videoSize.width)
+        let videoHeight = abs(videoSize.height)
+        
+        let aspectRatio = videoWidth / videoHeight
+        let targetSize: CGSize
+        
+        if videoWidth < videoHeight {
+            // Portrait or square - width is smaller
+            targetSize = CGSize(width: 100, height: 100 / aspectRatio)
+        } else {
+            // Landscape - height is smaller
+            targetSize = CGSize(width: 100 * aspectRatio, height: 100)
+        }
+        
+        imageGenerator.maximumSize = targetSize
+        
+        do {
+            let cgImage = try imageGenerator.copyCGImage(at: CMTime.zero, actualTime: nil)
+            return UIImage(cgImage: cgImage)
+        } catch {
+            print("Error generating thumbnail: \(error)")
+            return nil
+        }
     }
 }

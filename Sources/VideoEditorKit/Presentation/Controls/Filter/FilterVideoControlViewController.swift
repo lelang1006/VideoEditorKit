@@ -38,6 +38,7 @@ final class FilterVideoControlViewController: BaseVideoControlViewController {
     private lazy var segmentedControl: UISegmentedControl = makeSegmentedControl()
     private lazy var collectionView: UICollectionView = makeCollectionView()
     private var datasource: Datasource!
+    private var originalThumbnail: UIImage?
     
     private var currentCategory: FilterCategory = .photoEffects {
         didSet {
@@ -47,9 +48,10 @@ final class FilterVideoControlViewController: BaseVideoControlViewController {
 
     // MARK: Init
 
-    public init(selectedFilter: VideoFilter? = nil) {
+    public init(selectedFilter: VideoFilter? = nil, originalThumbnail: UIImage? = nil) {
         self.selectedFilter = selectedFilter
         self.initialFilter = selectedFilter
+        self.originalThumbnail = originalThumbnail
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -127,7 +129,7 @@ fileprivate extension FilterVideoControlViewController {
 
 extension FilterVideoControlViewController: UICollectionViewDelegateFlowLayout {
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
-        return CGSize(width: 70, height: 90)
+        return CGSize(width: 64, height: 84)
     }
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
@@ -159,24 +161,27 @@ fileprivate extension FilterVideoControlViewController {
         segmentedControl.addTarget(self, action: #selector(segmentedControlValueChanged(_:)), for: .valueChanged)
         
         contentView.addSubview(segmentedControl)
-        segmentedControl.autoPinEdge(toSuperviewEdge: .top, withInset: 16.0)
-        segmentedControl.autoPinEdge(toSuperviewEdge: .left, withInset: 16.0)
-        segmentedControl.autoPinEdge(toSuperviewEdge: .right, withInset: 16.0)
+        segmentedControl.autoPinEdge(toSuperviewEdge: .top, withInset: 8)
+        segmentedControl.autoPinEdge(toSuperviewEdge: .left, withInset: 16)
+        segmentedControl.autoPinEdge(toSuperviewEdge: .right, withInset: 16)
         segmentedControl.autoSetDimension(.height, toSize: 32.0)
     }
     
     func setupCollectionView() {
         let identifier = "FilterCell"
+        collectionView.contentInset = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
         collectionView.delegate = self
+        collectionView.showsVerticalScrollIndicator = false
+        collectionView.showsHorizontalScrollIndicator = false
         collectionView.register(FilterCell.self, forCellWithReuseIdentifier: identifier)
         
-        datasource = Datasource(collectionView: collectionView) { collectionView, indexPath, filterViewModel in
+        datasource = Datasource(collectionView: collectionView) { [weak self] collectionView, indexPath, filterViewModel in
             let cell = collectionView.dequeueReusableCell(
                 withReuseIdentifier: identifier,
                 for: indexPath
             ) as! FilterCell
 
-            cell.configure(with: filterViewModel)
+            cell.configure(with: filterViewModel, originalThumbnail: self?.originalThumbnail)
             cell.setNeedsLayout()
             cell.layoutIfNeeded()
 
@@ -185,8 +190,8 @@ fileprivate extension FilterVideoControlViewController {
 
         // Setup constraints
         contentView.addSubview(collectionView)
-        let inset: CGFloat = 16.0
-        collectionView.autoPinEdge(.top, to: .bottom, of: segmentedControl, withOffset: 16.0)
+        let inset: CGFloat = 0.0
+        collectionView.autoPinEdge(.top, to: .bottom, of: segmentedControl, withOffset: 24)
         collectionView.autoPinEdge(toSuperviewEdge: .left, withInset: inset)
         collectionView.autoPinEdge(toSuperviewEdge: .right, withInset: inset)
         collectionView.autoPinEdge(toSuperviewEdge: .bottom, withInset: inset)

@@ -29,4 +29,17 @@ public enum VideoControl: CaseIterable {
     public var titleImageName: String {
         return "VideoControls/\(title)"
     }
+    
+    public var heightOfVideoControl: CGFloat {
+        switch self {
+        case .speed:
+            return 210.0
+        case .trim:
+            return 210.0
+        case .crop:
+            return 210.0
+        case .filter:
+            return 284.0
+        }
+    }
 }

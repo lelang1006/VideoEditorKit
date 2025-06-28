@@ -88,10 +88,10 @@ private extension BaseVideoControlViewController {
         titleStack.autoSetDimension(.height, toSize: 20.0)
         
         // Content view
-        contentView.autoPinEdge(.top, to: .bottom, of: titleStack, withOffset: 20.0)
+        contentView.autoPinEdge(.top, to: .bottom, of: titleStack, withOffset: 8.0)
         contentView.autoPinEdge(toSuperviewEdge: .left)
         contentView.autoPinEdge(toSuperviewEdge: .right)
-        contentView.autoPinEdge(.bottom, to: .top, of: dismissButton, withOffset: -20.0)
+        contentView.autoPinEdge(.bottom, to: .top, of: dismissButton, withOffset: 0.0)
         
         // Buttons
         dismissButton.autoPinEdge(toSuperviewSafeArea: .bottom, withInset: 0.0)
