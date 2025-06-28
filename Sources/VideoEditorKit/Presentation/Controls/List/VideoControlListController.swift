@@ -30,7 +30,7 @@ final class VideoControlListController: UIViewController {
 
     private let viewFactory: VideoEditorViewFactoryProtocol
     private let store: VideoEditorStore
-
+    private var viewModels: [VideoControlCellViewModel] = []
     // MARK: Init
 
     init(store: VideoEditorStore, viewFactory: VideoEditorViewFactoryProtocol) {
@@ -46,6 +46,8 @@ final class VideoControlListController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        let allCases = VideoControl.allCases
+        viewModels = allCases.map(VideoControlCellViewModel.init)
 
         setupUI()
 
@@ -57,8 +59,6 @@ final class VideoControlListController: UIViewController {
 
 fileprivate extension VideoControlListController {
     func loadVideoControls() {
-        let allCases = VideoControl.allCases
-        let viewModels = allCases.map(VideoControlCellViewModel.init)
         
         var snapshot = NSDiffableDataSourceSnapshot<Section, VideoControlCellViewModel>()
         snapshot.appendSections([.main])
@@ -85,13 +85,14 @@ fileprivate extension VideoControlListController {
     func setupConstraints() {
         collectionView.autoPinEdge(toSuperviewEdge: .top)
         collectionView.autoPinEdge(toSuperviewEdge: .bottom)
-        collectionView.autoPinEdge(toSuperviewEdge: .left, withInset: 16)
-        collectionView.autoPinEdge(toSuperviewEdge: .right, withInset: 16)
+        collectionView.autoPinEdge(toSuperviewEdge: .left, withInset: 0)
+        collectionView.autoPinEdge(toSuperviewEdge: .right, withInset: 0)
     }
 
     func setupCollectionView() {
         let identifier = "VideoControlCell"
         collectionView.delegate = self
+        collectionView.contentInset = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
         collectionView.register(VideoControlCell.self, forCellWithReuseIdentifier: identifier)
         datasource = Datasource(collectionView: collectionView) { collectionView, indexPath, videoControl in
             let cell = collectionView.dequeueReusableCell(
@@ -116,7 +117,7 @@ fileprivate extension VideoControlListController {
         let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
         view.backgroundColor = .clear
         view.showsHorizontalScrollIndicator = false
-        view.isScrollEnabled = false
+        view.isScrollEnabled = viewModels.count > 5
         return view
     }
 }
@@ -131,9 +132,10 @@ extension VideoControlListController: UICollectionViewDelegateFlowLayout {
         sizeForItemAt indexPath: IndexPath
     ) -> CGSize {
         // Tính toán width để fit 4 items với spacing
-        let totalSpacing = CGFloat(3 * 8) // 3 spaces between 4 items
-        let availableWidth = collectionView.bounds.width - totalSpacing
-        let itemWidth = availableWidth / 4
+        let numerOfItems = viewModels.count > 5 ? 4.5 : CGFloat(viewModels.count)
+        let totalSpacing = (numerOfItems - 1) * 8
+        let availableWidth = collectionView.bounds.width - totalSpacing - 32
+        let itemWidth = availableWidth / numerOfItems
         return CGSize(width: itemWidth, height: 60.0)
     }
 
