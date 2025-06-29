@@ -18,12 +18,12 @@ class TrackTypeSelectionViewController: UIViewController {
     
     weak var delegate: TrackTypeSelectionDelegate?
     
-    private lazy var containerView: UIView = makeContainerView()
-    private lazy var titleLabel: UILabel = makeTitleLabel()
-    private lazy var trackOptionsStackView: UIStackView = makeTrackOptionsStackView()
-    private lazy var cancelButton: UIButton = makeCancelButton()
+    lazy var containerView: UIView = makeContainerView()
+    lazy var titleLabel: UILabel = makeTitleLabel()
+    lazy var trackOptionsStackView: UIStackView = makeTrackOptionsStackView()
+    lazy var cancelButton: UIButton = makeCancelButton()
     
-    private let availableTrackTypes: [TimelineTrackType] = [
+    let availableTrackTypes: [TimelineTrackType] = [
         .audio(.replacement),
         .audio(.voiceover),
         .text,
@@ -44,9 +44,9 @@ class TrackTypeSelectionViewController: UIViewController {
     }
 }
 
-// MARK: - Private Methods
+// MARK: - Methods
 
-private extension TrackTypeSelectionViewController {
+extension TrackTypeSelectionViewController {
     
     func setupUI() {
         view.backgroundColor = UIColor.black.withAlphaComponent(0.5)
@@ -118,7 +118,7 @@ private extension TrackTypeSelectionViewController {
 
 // MARK: - Factory Methods
 
-private extension TrackTypeSelectionViewController {
+extension TrackTypeSelectionViewController {
     
     func makeContainerView() -> UIView {
         let view = UIView()
@@ -176,14 +176,14 @@ protocol TrackTypeOptionViewDelegate: AnyObject {
     func trackTypeOptionTapped(_ trackType: TimelineTrackType)
 }
 
-private class TrackTypeOptionView: UIView {
+class TrackTypeOptionView: UIView {
     
     weak var delegate: TrackTypeOptionViewDelegate?
     
-    private let trackType: TimelineTrackType
-    private lazy var iconImageView: UIImageView = makeIconImageView()
-    private lazy var titleLabel: UILabel = makeTitleLabel()
-    private lazy var descriptionLabel: UILabel = makeDescriptionLabel()
+    let trackType: TimelineTrackType
+    lazy var iconImageView: UIImageView = makeIconImageView()
+    lazy var titleLabel: UILabel = makeTitleLabel()
+    lazy var descriptionLabel: UILabel = makeDescriptionLabel()
     
     init(trackType: TimelineTrackType) {
         self.trackType = trackType
@@ -196,7 +196,7 @@ private class TrackTypeOptionView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
     
-    private func setupUI() {
+    func setupUI() {
         backgroundColor = UIColor.systemGray6
         layer.cornerRadius = 12
         
@@ -208,7 +208,7 @@ private class TrackTypeOptionView: UIView {
         setupGesture()
     }
     
-    private func setupConstraints() {
+    func setupConstraints() {
         iconImageView.autoPinEdge(toSuperviewEdge: .left, withInset: 16)
         iconImageView.autoAlignAxis(toSuperviewAxis: .horizontal)
         iconImageView.autoSetDimensions(to: CGSize(width: 32, height: 32))
@@ -223,13 +223,13 @@ private class TrackTypeOptionView: UIView {
         descriptionLabel.autoPinEdge(toSuperviewEdge: .bottom, withInset: 12)
     }
     
-    private func setupGesture() {
+    func setupGesture() {
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(optionTapped))
         addGestureRecognizer(tapGesture)
         isUserInteractionEnabled = true
     }
     
-    private func updateContent() {
+    func updateContent() {
         switch trackType {
         case .audio(let subtype):
             switch subtype {
@@ -259,7 +259,7 @@ private class TrackTypeOptionView: UIView {
         iconImageView.tintColor = .systemBlue
     }
     
-    @objc private func optionTapped() {
+    @objc func optionTapped() {
         // Animate tap
         UIView.animate(withDuration: 0.1, animations: {
             self.transform = CGAffineTransform(scaleX: 0.95, y: 0.95)
@@ -272,21 +272,21 @@ private class TrackTypeOptionView: UIView {
         delegate?.trackTypeOptionTapped(trackType)
     }
     
-    private func makeIconImageView() -> UIImageView {
+    func makeIconImageView() -> UIImageView {
         let imageView = UIImageView()
         imageView.contentMode = .scaleAspectFit
         imageView.tintColor = .systemBlue
         return imageView
     }
     
-    private func makeTitleLabel() -> UILabel {
+    func makeTitleLabel() -> UILabel {
         let label = UILabel()
         label.font = .systemFont(ofSize: 16, weight: .semibold)
         label.textColor = .label
         return label
     }
     
-    private func makeDescriptionLabel() -> UILabel {
+    func makeDescriptionLabel() -> UILabel {
         let label = UILabel()
         label.font = .systemFont(ofSize: 13, weight: .regular)
         label.textColor = .secondaryLabel

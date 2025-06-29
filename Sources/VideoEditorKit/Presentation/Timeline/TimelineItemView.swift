@@ -11,7 +11,9 @@ import PureLayout
 
 protocol TimelineItemViewDelegate: AnyObject {
     func itemView(_ itemView: TimelineItemView, didSelectItem item: TimelineItem)
-    func itemView(_ itemView: TimelineItemView, didTrimItem item: TimelineItem, newStartTime: CMTime, newDuration: CMTime)
+    func itemView(_ itemView: Timeli// MARK: - Gesture Handling
+
+extension TimelineItemView {temView, didTrimItem item: TimelineItem, newStartTime: CMTime, newDuration: CMTime)
     func itemView(_ itemView: TimelineItemView, didDeleteItem item: TimelineItem)
 }
 
@@ -41,11 +43,11 @@ class TimelineItemView: UIView {
     private var feedbackGenerator: UIImpactFeedbackGenerator?
     
     // UI Components
-    private lazy var backgroundView: UIView = makeBackgroundView()
-    private lazy var contentView: UIView = makeContentView()
-    private lazy var titleLabel: UILabel = makeTitleLabel()
-    private lazy var leftResizeHandle: UIView = makeResizeHandle()
-    private lazy var rightResizeHandle: UIView = makeResizeHandle()
+    lazy var backgroundView: UIView = makeBackgroundView()
+    lazy var contentView: UIView = makeContentView()
+    lazy var titleLabel: UILabel = makeTitleLabel()
+    lazy var leftResizeHandle: UIView = makeResizeHandle()
+    lazy var rightResizeHandle: UIView = makeResizeHandle()
     private lazy var deleteButton: UIButton = makeDeleteButton()
     private lazy var shadowView: UIView = makeShadowView()
     
@@ -117,9 +119,9 @@ extension TimelineItemView {
     }
 }
 
-// MARK: - Private Methods
+// MARK: - Methods
 
-private extension TimelineItemView {
+extension TimelineItemView {
     
     func setupUI() {
         // Setup view hierarchy
@@ -549,7 +551,7 @@ private extension TimelineItemView {
 
 // MARK: - Factory Methods
 
-private extension TimelineItemView {
+extension TimelineItemView {
     
     func makeBackgroundView() -> UIView {
         let view = UIView()

@@ -10,45 +10,23 @@ import AVFoundation
 import PureLayout
 
 protocol TimelineTrackViewDelegate: AnyObject {
-    func trackView(_ trackView: TimelineTrackView, didS    private func makeIconView() -> UIImageView {
-        let theme = TimelineTheme.current
-        let imageView = UIImageView()
-        imageView.tintColor = theme.primaryTextColor
-        imageView.contentMode = .scaleAspectFit
-        return imageView
-    }
-    
-    private func makeTitleLabel() -> UILabel {
-        let theme = TimelineTheme.current
-        let label = UILabel()
-        label.font = .systemFont(ofSize: 14, weight: .semibold)
-        label.textColor = theme.primaryTextColor
-        return label
-    }
-    
-    private func makeDeleteButton() -> UIButton {
-        let theme = TimelineTheme.current
-        let button = UIButton()
-        button.setImage(UIImage(systemName: "trash"), for: .normal)
-        button.tintColor = theme.deleteButtonColor
-        return button
-    }lineItem)
+    func trackView(_ trackView: TimelineTrackView, didSelectItem item: TimelineItem)
     func trackView(_ trackView: TimelineTrackView, didTrimItem item: TimelineItem, newStartTime: CMTime, newDuration: CMTime)
     func trackView(_ trackView: TimelineTrackView, didDeleteItem item: TimelineItem)
 }
 
-class TimelineTrackView: UIView {
+final class TimelineTrackView: UIView {
     
     // MARK: - Properties
     
     weak var delegate: TimelineTrackViewDelegate?
     
-    private let track: TimelineTrack
-    private let configuration: TimelineConfiguration
-    private var itemViews: [TimelineItemView] = []
+    let track: TimelineTrack
+    let configuration: TimelineConfiguration
+    var itemViews: [TimelineItemView] = []
     
-    private lazy var headerView: TrackHeaderView = makeHeaderView()
-    private lazy var contentView: UIView = makeContentView()
+    lazy var headerView: TrackHeaderView = makeHeaderView()
+    lazy var contentView: UIView = makeContentView()
     
     // MARK: - Init
     

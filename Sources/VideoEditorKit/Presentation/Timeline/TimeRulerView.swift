@@ -13,11 +13,11 @@ class TimeRulerView: UIView {
     
     // MARK: - Properties
     
-    private let configuration: TimelineConfiguration
-    private var duration: CMTime = .zero
+    let configuration: TimelineConfiguration
+    var duration: CMTime = .zero
     
-    private lazy var scrollView: UIScrollView = makeScrollView()
-    private lazy var rulerContentView: UIView = makeRulerContentView()
+    lazy var scrollView: UIScrollView = makeScrollView()
+    lazy var rulerContentView: UIView = makeRulerContentView()
     
     // MARK: - Init
     
@@ -52,9 +52,9 @@ extension TimeRulerView {
     }
 }
 
-// MARK: - Private Methods
+// MARK: - Methods
 
-private extension TimeRulerView {
+extension TimeRulerView {
     
     func setupUI() {
         updateTheme()
@@ -186,7 +186,7 @@ private extension TimeRulerView {
 
 // MARK: - Factory Methods
 
-private extension TimeRulerView {
+extension TimeRulerView {
     
     func makeScrollView() -> UIScrollView {
         let scrollView = UIScrollView()

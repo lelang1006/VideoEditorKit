@@ -11,18 +11,20 @@ import PureLayout
 
 class PlayheadView: UIView {
     
-    // MARK: - Properties
+   // MARK: - Gesture Handling
+
+extension PlayheadView { MARK: - Properties
     
-    private var currentTime: CMTime = .zero
-    private var isDragging: Bool = false
+    var currentTime: CMTime = .zero
+    var isDragging: Bool = false
     
     // UI Components
-    private lazy var lineView: UIView = makeLineView()
-    private lazy var headView: UIView = makeHeadView()
-    private lazy var timeLabel: UILabel = makeTimeLabel()
+    lazy var lineView: UIView = makeLineView()
+    lazy var headView: UIView = makeHeadView()
+    lazy var timeLabel: UILabel = makeTimeLabel()
     
     // Gesture
-    private var panGesture: UIPanGestureRecognizer!
+    var panGesture: UIPanGestureRecognizer!
     
     // Callbacks
     var onTimeChanged: ((CMTime) -> Void)?
@@ -69,9 +71,9 @@ extension PlayheadView {
     }
 }
 
-// MARK: - Private Methods
+// MARK: - Methods
 
-private extension PlayheadView {
+extension PlayheadView {
     
     func setupUI() {
         backgroundColor = .clear
@@ -223,7 +225,7 @@ private extension PlayheadView {
 
 // MARK: - Factory Methods
 
-private extension PlayheadView {
+extension PlayheadView {
     
     func makeLineView() -> UIView {
         let view = UIView()
@@ -255,7 +257,7 @@ private extension PlayheadView {
 
 // MARK: - PlayheadIndicatorView
 
-private class PlayheadIndicatorView: UIView {
+class PlayheadIndicatorView: UIView {
     
     override func draw(_ rect: CGRect) {
         super.draw(rect)

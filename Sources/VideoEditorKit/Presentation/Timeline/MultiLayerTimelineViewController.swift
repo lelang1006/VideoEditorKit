@@ -10,7 +10,7 @@ import Combine
 import PureLayout
 import UIKit
 
-public protocol MultiLayerTimelineDelegate: AnyObject {
+protocol MultiLayerTimelineDelegate: AnyObject {
     func timeline(_ timeline: MultiLayerTimelineViewController, didSelectItem item: TimelineItem)
     func timeline(_ timeline: MultiLayerTimelineViewController, didTrimItem item: TimelineItem, newStartTime: CMTime, newDuration: CMTime)
     func timeline(_ timeline: MultiLayerTimelineViewController, didDeleteItem item: TimelineItem)
@@ -24,27 +24,41 @@ final class MultiLayerTimelineViewController: UIViewController {
     @Published var playheadPosition: CMTime = .zero
     @Published var isSeeking: Bool = false
     @Published var selectedItem: TimelineItem?
+    @Published var seekerValue: Double = 0.0
     
-    // MARK: - Public Properties
+    // MARK: - Properties
     
-    public weak var delegate: MultiLayerTimelineDelegate?
-    public var tracks: [TimelineTrack] = [] {
+    weak var delegate: MultiLayerTimelineDelegate?
+    var tracks: [TimelineTrack] = [] {
         didSet {
             updateTracksView()
         }
     }
     
-    // MARK: - Private Properties
+    lazy var scrollView: UIScrollView = makeScrollView()
+    lazy var contentView: UIView = makeContentView()
+    lazy var timeRulerView: TimeRulerView = makeTimeRulerView()
+    lazy var playheadView: PlayheadView = makePlayheadView()
+    lazy var tracksStackView: UIStackView = makeTracksStackView()
     
-    private lazy var scrollView: UIScrollView = makeScrollView()
-    private lazy var contentView: UIView = makeContentView()
-    private lazy var timeRulerView: TimeRulerView = makeTimeRulerView()
-    private lazy var playheadView: PlayheadView = makePlayheadView()
-    private lazy var tracksStackView: UIStackView = makeTracksStackView()
+    var trackViews: [TimelineTrackView] = []
+    var cancellables = Set<AnyCancellable>()
+    let configuration = TimelineConfiguration.default
     
-    private var trackViews: [TimelineTrackView] = []
-    private var cancellables = Set<AnyCancellable>()
-    private let configuration = TimelineConfiguration.default
+    // MARK: - Store Integration (same as VideoTimelineViewController)
+    
+    let store: VideoEditorStore
+    
+    // MARK: - Init
+    
+    init(store: VideoEditorStore) {
+        self.store = store
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
     
     // MARK: - Init
     
@@ -60,6 +74,25 @@ final class MultiLayerTimelineViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         updatePlayheadPosition()
+        
+        // Apply content insets like VideoTimelineViewController
+        let horizontal = view.bounds.width / 2
+        scrollView.contentInset = UIEdgeInsets(top: 0, left: horizontal, bottom: 0, right: horizontal)
+    }
+    
+    // MARK: - Timeline Generation (same pattern as VideoTimelineViewController)
+    
+    func generateTimeline(for asset: AVAsset) {
+        let rect = CGRect(x: 0, y: 0, width: view.bounds.width, height: 64.0)
+        store.videoTimeline(for: asset, in: rect)
+            .replaceError(with: [])
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] images in
+                guard let self = self else { return }
+                self.setupTimelineWithAsset(asset, thumbnails: images)
+            }.store(in: &cancellables)
+        
+        updateContentSize()
     }
 }
 
@@ -131,9 +164,9 @@ extension MultiLayerTimelineViewController {
     }
 }
 
-// MARK: - Private Methods
+// MARK: - Methods
 
-private extension MultiLayerTimelineViewController {
+extension MultiLayerTimelineViewController {
     
     func updateTracksView() {
         // Remove existing track views
@@ -185,7 +218,7 @@ private extension MultiLayerTimelineViewController {
 
 // MARK: - UI Setup
 
-private extension MultiLayerTimelineViewController {
+extension MultiLayerTimelineViewController {
     
     func setupUI() {
         // Set light theme as default
@@ -231,6 +264,25 @@ private extension MultiLayerTimelineViewController {
     }
     
     func setupBindings() {
+        // Store bindings (same as VideoTimelineViewController)
+        store.$playheadProgress
+            .sink { [weak self] playheadProgress in
+                guard let self = self else { return }
+                if !self.isSeeking {
+                    self.playheadPosition = CMTime(seconds: playheadProgress, preferredTimescale: configuration.timeScale)
+                }
+            }
+            .store(in: &cancellables)
+        
+        $seekerValue
+            .assign(to: \.currentSeekingValue, weakly: store)
+            .store(in: &cancellables)
+
+        $isSeeking
+            .assign(to: \.isSeeking, weakly: store)
+            .store(in: &cancellables)
+        
+        // Timeline-specific bindings
         $playheadPosition
             .sink { [weak self] _ in
                 self?.updatePlayheadPosition()
@@ -250,7 +302,7 @@ private extension MultiLayerTimelineViewController {
 
 // MARK: - Factory Methods
 
-private extension MultiLayerTimelineViewController {
+extension MultiLayerTimelineViewController {
     
     func makeScrollView() -> UIScrollView {
         let scrollView = UIScrollView()
@@ -288,7 +340,25 @@ private extension MultiLayerTimelineViewController {
 
 extension MultiLayerTimelineViewController: UIScrollViewDelegate {
     
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        isSeeking = true
+    }
+
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        isSeeking = false
+    }
+
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        if !decelerate {
+            isSeeking = false
+        }
+    }
+    
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        // Update seeker value (same as VideoTimelineViewController)
+        seekerValue = Double((scrollView.contentOffset.x + (scrollView.contentSize.width / 2)) / scrollView.contentSize.width)
+        
+        // Update playhead position for visual feedback
         if isSeeking {
             let newTime = CMTime(
                 seconds: Double(scrollView.contentOffset.x) / Double(configuration.pixelsPerSecond),
@@ -296,20 +366,9 @@ extension MultiLayerTimelineViewController: UIScrollViewDelegate {
             )
             playheadPosition = newTime
         }
-    }
-    
-    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
-        isSeeking = true
-    }
-    
-    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-        if !decelerate {
-            isSeeking = false
-        }
-    }
-    
-    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
-        isSeeking = false
+        
+        // Update time ruler scroll position to sync with timeline
+        timeRulerView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: 0))
     }
 }
 
@@ -366,7 +425,7 @@ extension MultiLayerTimelineViewController: TimelineTrackViewDelegate {
         removeItem(item)
     }
     
-    @objc private func themeDidChange() {
+    @objc func themeDidChange() {
         updateTheme()
     }
     
@@ -387,7 +446,7 @@ extension Array {
 
 extension MultiLayerTimelineViewController: TimelineThemeAware {
     
-    public func updateTheme() {
+    func updateTheme() {
         let theme = TimelineTheme.current
         
         view.backgroundColor = theme.backgroundColor
@@ -403,3 +462,44 @@ extension MultiLayerTimelineViewController: TimelineThemeAware {
         // Update all track views
         trackViews.forEach { $0.updateTheme() }
     }
+}
+
+// MARK: - Timeline Setup
+
+extension MultiLayerTimelineViewController {
+    
+    func setupTimelineWithAsset(_ asset: AVAsset, thumbnails: [CGImage] = []) {
+        let duration = asset.duration
+        
+        // Create a main video track with the asset
+        var videoTrack = TimelineTrack(type: .video)
+        let videoItem = VideoTimelineItem(
+            asset: asset,
+            thumbnails: thumbnails,
+            startTime: .zero,
+            duration: duration
+        )
+        videoTrack.items = [videoItem]
+        
+        // Create an audio track if audio exists
+        var newTracks = [videoTrack]
+        if asset.tracks(withMediaType: .audio).count > 0 {
+            var audioTrack = TimelineTrack(type: .audio(.original))
+            let audioItem = AudioTimelineItem(
+                trackType: .audio(.original),
+                asset: asset,
+                waveform: [], // Empty waveform for now, could be enhanced later
+                title: "Main Audio",
+                volume: 1.0,
+                isMuted: false,
+                startTime: .zero,
+                duration: duration
+            )
+            audioTrack.items = [audioItem]
+            newTracks.append(audioTrack)
+        }
+        
+        // Update the timeline with tracks
+        self.tracks = newTracks
+    }
+}

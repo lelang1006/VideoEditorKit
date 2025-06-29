@@ -18,8 +18,8 @@ class AddTrackButton: UIView {
     
     weak var delegate: AddTrackButtonDelegate?
     
-    private lazy var button: UIButton = makeButton()
-    private lazy var label: UILabel = makeLabel()
+    lazy var button: UIButton = makeButton()
+    lazy var label: UILabel = makeLabel()
     
     // MARK: - Init
     
@@ -33,9 +33,9 @@ class AddTrackButton: UIView {
     }
 }
 
-// MARK: - Private Methods
+// MARK: - Methods
 
-private extension AddTrackButton {
+extension AddTrackButton {
     
     func setupUI() {
         backgroundColor = UIColor.systemBlue.withAlphaComponent(0.2)
@@ -82,7 +82,7 @@ private extension AddTrackButton {
 
 // MARK: - Factory Methods
 
-private extension AddTrackButton {
+extension AddTrackButton {
     
     func makeButton() -> UIButton {
         let button = UIButton()
