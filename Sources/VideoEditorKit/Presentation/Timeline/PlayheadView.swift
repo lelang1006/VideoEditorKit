@@ -11,9 +11,7 @@ import PureLayout
 
 class PlayheadView: UIView {
     
-   // MARK: - Gesture Handling
-
-extension PlayheadView { MARK: - Properties
+    // MARK: - Properties
     
     var currentTime: CMTime = .zero
     var isDragging: Bool = false

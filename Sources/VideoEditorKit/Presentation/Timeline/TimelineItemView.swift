@@ -11,9 +11,7 @@ import PureLayout
 
 protocol TimelineItemViewDelegate: AnyObject {
     func itemView(_ itemView: TimelineItemView, didSelectItem item: TimelineItem)
-    func itemView(_ itemView: Timeli// MARK: - Gesture Handling
-
-extension TimelineItemView {temView, didTrimItem item: TimelineItem, newStartTime: CMTime, newDuration: CMTime)
+    func itemView(_ itemView: TimelineItemView, didTrimItem item: TimelineItem, newStartTime: CMTime, newDuration: CMTime)
     func itemView(_ itemView: TimelineItemView, didDeleteItem item: TimelineItem)
 }
 
@@ -26,7 +24,7 @@ class TimelineItemView: UIView {
     private(set) var item: TimelineItem
     private let configuration: TimelineConfiguration
     
-    private var isSelected: Bool = false {
+    private var itemIsSelected: Bool = false {
         didSet {
             updateSelectionState()
         }
@@ -76,7 +74,7 @@ class TimelineItemView: UIView {
 extension TimelineItemView {
     
     func setSelected(_ selected: Bool) {
-        isSelected = selected
+        itemIsSelected = selected
     }
     
     func updateItemData(_ newItem: TimelineItem) {
@@ -273,7 +271,7 @@ extension TimelineItemView {
         let theme = TimelineTheme.current
         
         UIView.animate(withDuration: 0.2, delay: 0, options: [.curveEaseInOut]) {
-            if self.isSelected {
+            if self.itemIsSelected {
                 self.layer.borderColor = theme.selectionBorderColor.cgColor
                 self.layer.borderWidth = 2
                 self.leftResizeHandle.isHidden = false
@@ -674,7 +672,7 @@ extension TimelineItemView: TimelineThemeAware {
         shadowView.layer.shadowColor = theme.shadowColor.cgColor
         
         // Update selection if selected
-        if isSelected {
+        if itemIsSelected {
             layer.borderColor = theme.selectionBorderColor.cgColor
         }
     }

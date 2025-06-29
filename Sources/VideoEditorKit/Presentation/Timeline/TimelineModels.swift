@@ -140,14 +140,20 @@ public struct TimelineTrack {
 
 // MARK: - Timeline Configuration
 
-public struct TimelineConfiguration {
-    public let timeScale: CMTimeScale = 600
-    public let pixelsPerSecond: CGFloat = 100
-    public let trackHeight: CGFloat = 64
-    public let trackSpacing: CGFloat = 8
-    public let minimumItemWidth: CGFloat = 20
+struct TimelineConfiguration {
+    let timeScale: CMTimeScale
+    let pixelsPerSecond: CGFloat
+    let trackHeight: CGFloat
+    let trackSpacing: CGFloat
+    let minimumItemWidth: CGFloat
     
-    public static let `default` = TimelineConfiguration()
+    static let `default` = TimelineConfiguration(
+        timeScale: 600,
+        pixelsPerSecond: 100,
+        trackHeight: 64,
+        trackSpacing: 8,
+        minimumItemWidth: 20
+    )
 }
 
 // MARK: - Timeline Configuration Extensions
@@ -169,14 +175,6 @@ extension TimelineConfiguration {
         trackSpacing: 4,
         minimumItemWidth: 15
     )
-    
-    private init(timeScale: CMTimeScale, pixelsPerSecond: CGFloat, trackHeight: CGFloat, trackSpacing: CGFloat, minimumItemWidth: CGFloat) {
-        self.timeScale = timeScale
-        self.pixelsPerSecond = pixelsPerSecond
-        self.trackHeight = trackHeight
-        self.trackSpacing = trackSpacing
-        self.minimumItemWidth = minimumItemWidth
-    }
 }
 
 // MARK: - Sample Data Creation

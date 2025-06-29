@@ -60,6 +60,10 @@ final class MultiLayerTimelineViewController: UIViewController {
         fatalError("init(coder:) has not been implemented")
     }
     
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
     // MARK: - Init
     
     override func viewDidLoad() {
@@ -204,7 +208,7 @@ extension MultiLayerTimelineViewController {
     func updatePlayheadPosition() {
         let x = CGFloat(playheadPosition.seconds) * configuration.pixelsPerSecond
         playheadView.center.x = x
-        playheadView.setCurrentTime(playheadPosition)
+        playheadView.setCurrentTime(playheadPosition, animated: false)
         
         // Update time ruler scroll position to sync with timeline
         timeRulerView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: 0))
@@ -269,7 +273,7 @@ extension MultiLayerTimelineViewController {
             .sink { [weak self] playheadProgress in
                 guard let self = self else { return }
                 if !self.isSeeking {
-                    self.playheadPosition = CMTime(seconds: playheadProgress, preferredTimescale: configuration.timeScale)
+                    self.playheadPosition = playheadProgress
                 }
             }
             .store(in: &cancellables)
@@ -289,14 +293,9 @@ extension MultiLayerTimelineViewController {
             }
             .store(in: &cancellables)
         
-        // Setup playhead callbacks
-        playheadView.onTimeChanged = { [weak self] time in
-            self?.playheadPosition = time
-        }
-        
-        playheadView.onDragStateChanged = { [weak self] isDragging in
-            self?.isSeeking = isDragging
-        }
+        // Setup playhead callbacks - we need to implement these differently
+        // For now, we'll handle playhead interaction through scroll view delegate
+        playheadView.setDragging(false)
     }
 }
 
@@ -428,10 +427,6 @@ extension MultiLayerTimelineViewController: TimelineTrackViewDelegate {
     @objc func themeDidChange() {
         updateTheme()
     }
-    
-    deinit {
-        NotificationCenter.default.removeObserver(self)
-    }
 }
 
 // MARK: - Array Extension
@@ -453,7 +448,7 @@ extension MultiLayerTimelineViewController: TimelineThemeAware {
         scrollView.backgroundColor = theme.contentBackgroundColor
         contentView.backgroundColor = theme.contentBackgroundColor
         
-        // Update playhead color
+        // Update playhead appearance
         playheadView.updateTheme()
         
         // Update time ruler
