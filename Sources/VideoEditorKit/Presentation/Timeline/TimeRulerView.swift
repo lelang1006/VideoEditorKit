@@ -123,8 +123,11 @@ extension TimeRulerView {
             context.addLine(to: CGPoint(x: x, y: rect.height))
             context.strokePath()
             
-            // Draw time label
-            drawTimeLabel(at: CGPoint(x: x, y: 5), time: currentTime, context: context)
+            // Only draw time label for seconds divisible by 2 (0s, 2s, 4s, 6s, etc.)
+            let currentTimeInt = Int(currentTime)
+            if currentTimeInt % 2 == 0 {
+                drawTimeLabel(at: CGPoint(x: x, y: 5), time: currentTime, context: context)
+            }
             
             currentTime += interval
         }
@@ -174,13 +177,9 @@ extension TimeRulerView {
         let totalSeconds = Int(seconds)
         let minutes = totalSeconds / 60
         let remainingSeconds = totalSeconds % 60
-        let milliseconds = Int((seconds - Double(totalSeconds)) * 100)
         
-        if minutes > 0 {
-            return String(format: "%d:%02d", minutes, remainingSeconds)
-        } else {
-            return String(format: "%02d.%02d", remainingSeconds, milliseconds)
-        }
+        // Always format as MM:SS
+        return String(format: "%02d:%02d", minutes, remainingSeconds)
     }
 }
 

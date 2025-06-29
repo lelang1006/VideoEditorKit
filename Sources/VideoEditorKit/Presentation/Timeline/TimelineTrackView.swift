@@ -12,7 +12,6 @@ import PureLayout
 protocol TimelineTrackViewDelegate: AnyObject {
     func trackView(_ trackView: TimelineTrackView, didSelectItem item: TimelineItem)
     func trackView(_ trackView: TimelineTrackView, didTrimItem item: TimelineItem, newStartTime: CMTime, newDuration: CMTime)
-    func trackView(_ trackView: TimelineTrackView, didDeleteItem item: TimelineItem)
 }
 
 final class TimelineTrackView: UIView {
@@ -166,10 +165,6 @@ extension TimelineTrackView: TimelineItemViewDelegate {
     func itemView(_ itemView: TimelineItemView, didTrimItem item: TimelineItem, newStartTime: CMTime, newDuration: CMTime) {
         delegate?.trackView(self, didTrimItem: item, newStartTime: newStartTime, newDuration: newDuration)
     }
-    
-    func itemView(_ itemView: TimelineItemView, didDeleteItem item: TimelineItem) {
-        delegate?.trackView(self, didDeleteItem: item)
-    }
 }
 
 // MARK: - TrackHeaderView
@@ -177,9 +172,6 @@ extension TimelineTrackView: TimelineItemViewDelegate {
 class TrackHeaderView: UIView {
     
     private let track: TimelineTrack
-    private lazy var iconView: UIImageView = makeIconView()
-    private lazy var titleLabel: UILabel = makeTitleLabel()
-    private lazy var deleteButton: UIButton = makeDeleteButton()
     
     init(track: TimelineTrack) {
         self.track = track
@@ -194,70 +186,19 @@ class TrackHeaderView: UIView {
     private func setupUI() {
         updateTheme()
         
-        addSubview(iconView)
-        addSubview(titleLabel)
-        addSubview(deleteButton)
+        // titleLabel is hidden - not added to view hierarchy
         
         setupConstraints()
         updateContent()
     }
     
     private func setupConstraints() {
-        iconView.autoPinEdge(toSuperviewEdge: .left, withInset: 8)
-        iconView.autoAlignAxis(toSuperviewAxis: .horizontal)
-        iconView.autoSetDimensions(to: CGSize(width: 20, height: 20))
-        
-        titleLabel.autoPinEdge(.left, to: .right, of: iconView, withOffset: 8)
-        titleLabel.autoAlignAxis(toSuperviewAxis: .horizontal)
-        
-        deleteButton.autoPinEdge(toSuperviewEdge: .right, withInset: 8)
-        deleteButton.autoAlignAxis(toSuperviewAxis: .horizontal)
-        deleteButton.autoSetDimensions(to: CGSize(width: 24, height: 24))
+        // No constraints needed since titleLabel is hidden
     }
     
     private func updateContent() {
-        switch track.type {
-        case .video:
-            iconView.image = UIImage(systemName: "video.fill")
-            titleLabel.text = "Video"
-        case .audio(let subtype):
-            iconView.image = UIImage(systemName: "speaker.wave.2.fill")
-            switch subtype {
-            case .original:
-                titleLabel.text = "Original Audio"
-            case .replacement:
-                titleLabel.text = "Audio Track"
-            case .voiceover:
-                titleLabel.text = "Voiceover"
-            }
-        case .text:
-            iconView.image = UIImage(systemName: "text.bubble.fill")
-            titleLabel.text = "Text"
-        case .sticker:
-            iconView.image = UIImage(systemName: "star.fill")
-            titleLabel.text = "Stickers"
-        }
-    }
-    
-    private func makeIconView() -> UIImageView {
-        let imageView = UIImageView()
-        imageView.tintColor = .white
-        imageView.contentMode = .scaleAspectFit
-        return imageView
-    }
-    
-    private func makeTitleLabel() -> UILabel {
-        let label = UILabel()
-        label.font = .systemFont(ofSize: 12, weight: .medium)
-        label.textColor = .white
-        return label
-    }
-    
-    private func makeDeleteButton() -> UIButton {
-        let button = UIButton()
-        button.setImage(UIImage(systemName: "trash"), for: .normal)
-        button.tintColor = .red
-        return button
+        // Track header content is hidden
+        // No title text will be displayed
     }
 }
 
@@ -268,9 +209,7 @@ extension TrackHeaderView: TimelineThemeAware {
     public func updateTheme() {
         let theme = TimelineTheme.current
         backgroundColor = theme.trackHeaderBackgroundColor
-        iconView.tintColor = theme.primaryTextColor
-        titleLabel.textColor = theme.primaryTextColor
-        deleteButton.tintColor = theme.deleteButtonColor
+        // No title label to update since it's hidden
     }
 }
 

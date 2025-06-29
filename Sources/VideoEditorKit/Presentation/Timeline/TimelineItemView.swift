@@ -12,7 +12,6 @@ import PureLayout
 protocol TimelineItemViewDelegate: AnyObject {
     func itemView(_ itemView: TimelineItemView, didSelectItem item: TimelineItem)
     func itemView(_ itemView: TimelineItemView, didTrimItem item: TimelineItem, newStartTime: CMTime, newDuration: CMTime)
-    func itemView(_ itemView: TimelineItemView, didDeleteItem item: TimelineItem)
 }
 
 class TimelineItemView: UIView {
@@ -43,10 +42,8 @@ class TimelineItemView: UIView {
     // UI Components
     lazy var backgroundView: UIView = makeBackgroundView()
     lazy var contentView: UIView = makeContentView()
-    lazy var titleLabel: UILabel = makeTitleLabel()
     lazy var leftResizeHandle: UIView = makeResizeHandle()
     lazy var rightResizeHandle: UIView = makeResizeHandle()
-    private lazy var deleteButton: UIButton = makeDeleteButton()
     private lazy var shadowView: UIView = makeShadowView()
     
     // Gestures
@@ -126,10 +123,8 @@ extension TimelineItemView {
         addSubview(shadowView)
         addSubview(backgroundView)
         addSubview(contentView)
-        addSubview(titleLabel)
         addSubview(leftResizeHandle)
         addSubview(rightResizeHandle)
-        addSubview(deleteButton)
         
         setupConstraints()
         updateSelectionState()
@@ -145,10 +140,6 @@ extension TimelineItemView {
         
         contentView.autoPinEdgesToSuperviewEdges(with: UIEdgeInsets(top: 2, left: 4, bottom: 2, right: 4))
         
-        titleLabel.autoPinEdge(toSuperviewEdge: .left, withInset: 8)
-        titleLabel.autoPinEdge(toSuperviewEdge: .right, withInset: 8)
-        titleLabel.autoAlignAxis(toSuperviewAxis: .horizontal)
-        
         leftResizeHandle.autoPinEdge(toSuperviewEdge: .left)
         leftResizeHandle.autoPinEdge(toSuperviewEdge: .top)
         leftResizeHandle.autoPinEdge(toSuperviewEdge: .bottom)
@@ -158,10 +149,6 @@ extension TimelineItemView {
         rightResizeHandle.autoPinEdge(toSuperviewEdge: .top)
         rightResizeHandle.autoPinEdge(toSuperviewEdge: .bottom)
         rightResizeHandle.autoSetDimension(.width, toSize: 8)
-        
-        deleteButton.autoPinEdge(toSuperviewEdge: .top, withInset: 4)
-        deleteButton.autoPinEdge(toSuperviewEdge: .right, withInset: 4)
-        deleteButton.autoSetDimensions(to: CGSize(width: 20, height: 20))
     }
     
     func setupGestures() {
@@ -193,8 +180,6 @@ extension TimelineItemView {
     func updateVideoContent() {
         let theme = TimelineTheme.current
         backgroundView.backgroundColor = theme.videoItemColor
-        titleLabel.text = "Video"
-        titleLabel.textColor = theme.primaryTextColor
         
         // Add video thumbnails if available
         if let videoItem = item as? VideoTimelineItem {
@@ -205,10 +190,8 @@ extension TimelineItemView {
     func updateAudioContent() {
         let theme = TimelineTheme.current
         backgroundView.backgroundColor = theme.audioItemColor
-        titleLabel.textColor = theme.primaryTextColor
         
         if let audioItem = item as? AudioTimelineItem {
-            titleLabel.text = audioItem.title
             addWaveform(audioItem.waveform)
         }
     }
@@ -216,18 +199,15 @@ extension TimelineItemView {
     func updateTextContent() {
         let theme = TimelineTheme.current
         backgroundView.backgroundColor = theme.textItemColor
-        titleLabel.textColor = theme.primaryTextColor
         
         if let textItem = item as? TextTimelineItem {
-            titleLabel.text = textItem.text
+            // Content will be shown through visual representation in contentView
         }
     }
     
     func updateStickerContent() {
         let theme = TimelineTheme.current
         backgroundView.backgroundColor = theme.stickerItemColor
-        titleLabel.text = "Sticker"
-        titleLabel.textColor = theme.primaryTextColor
         
         if let stickerItem = item as? StickerTimelineItem {
             addStickerPreview(stickerItem.image)
@@ -276,14 +256,12 @@ extension TimelineItemView {
                 self.layer.borderWidth = 2
                 self.leftResizeHandle.isHidden = false
                 self.rightResizeHandle.isHidden = false
-                self.deleteButton.isHidden = false
                 self.shadowView.alpha = 1
                 self.transform = CGAffineTransform(scaleX: 1.02, y: 1.02)
             } else {
                 self.layer.borderWidth = 0
                 self.leftResizeHandle.isHidden = true
                 self.rightResizeHandle.isHidden = true
-                self.deleteButton.isHidden = true
                 self.shadowView.alpha = 0
                 self.transform = .identity
             }
@@ -444,40 +422,6 @@ private extension TimelineItemView {
         }
         
         frame = newFrame
-        
-        // Update content based on new duration
-        updateResizeVisualFeedback(newDuration: newDuration)
-    }
-    
-    func updateResizeVisualFeedback(newDuration: CMTime) {
-        // Update title to show new duration
-        let formatter = DateComponentsFormatter()
-        formatter.unitsStyle = .abbreviated
-        formatter.allowedUnits = [.minute, .second]
-        let durationString = formatter.string(from: newDuration.seconds) ?? "0s"
-        
-        UIView.transition(with: titleLabel, duration: 0.1, options: .transitionCrossDissolve) {
-            self.titleLabel.text = "\(self.getItemTitle()) - \(durationString)"
-        }
-    }
-    
-    func getItemTitle() -> String {
-        switch item.trackType {
-        case .video:
-            return "Video"
-        case .audio:
-            if let audioItem = item as? AudioTimelineItem {
-                return audioItem.title
-            }
-            return "Audio"
-        case .text:
-            if let textItem = item as? TextTimelineItem {
-                return textItem.text.prefix(10) + (textItem.text.count > 10 ? "..." : "")
-            }
-            return "Text"
-        case .sticker:
-            return "Sticker"
-        }
     }
     
     func handlePanEnded(velocity: CGPoint) {
@@ -512,38 +456,11 @@ private extension TimelineItemView {
             delegate?.itemView(self, didTrimItem: item, newStartTime: finalStartTime, newDuration: finalDuration)
         }
         
-        // Reset title to original
-        UIView.transition(with: titleLabel, duration: 0.2, options: .transitionCrossDissolve) {
-            switch self.item.trackType {
-            case .video:
-                self.titleLabel.text = "Video"
-            case .audio:
-                if let audioItem = self.item as? AudioTimelineItem {
-                    self.titleLabel.text = audioItem.title
-                }
-            case .text:
-                if let textItem = self.item as? TextTimelineItem {
-                    self.titleLabel.text = textItem.text
-                }
-            case .sticker:
-                self.titleLabel.text = "Sticker"
-            }
-        }
-        
         // Reset state
         isDragging = false
         isResizing = false
         resizeDirection = .none
         initialFrame = .zero
-    }
-    
-    @objc func deleteButtonTapped() {
-        TimelineHapticFeedback.delete()
-        
-        // Animate deletion
-        TimelineAnimationSystem.animateItemRemoval(self) {
-            self.delegate?.itemView(self, didDeleteItem: self.item)
-        }
     }
 }
 
@@ -565,32 +482,12 @@ extension TimelineItemView {
         return view
     }
     
-    func makeTitleLabel() -> UILabel {
-        let label = UILabel()
-        label.font = .systemFont(ofSize: 12, weight: .medium)
-        label.textAlignment = .center
-        label.numberOfLines = 1
-        return label
-    }
-    
     func makeResizeHandle() -> UIView {
         let theme = TimelineTheme.current
         let view = UIView()
         view.backgroundColor = theme.resizeHandleColor.withAlphaComponent(0.8)
         view.isHidden = true
         return view
-    }
-    
-    func makeDeleteButton() -> UIButton {
-        let theme = TimelineTheme.current
-        let button = UIButton()
-        button.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
-        button.tintColor = theme.deleteButtonColor
-        button.backgroundColor = theme.backgroundColor.withAlphaComponent(0.9)
-        button.layer.cornerRadius = 10
-        button.addTarget(self, action: #selector(deleteButtonTapped), for: .touchUpInside)
-        button.isHidden = true
-        return button
     }
     
     func makeShadowView() -> UIView {
@@ -663,10 +560,6 @@ extension TimelineItemView: TimelineThemeAware {
         // Update resize handles
         leftResizeHandle.backgroundColor = theme.resizeHandleColor.withAlphaComponent(0.8)
         rightResizeHandle.backgroundColor = theme.resizeHandleColor.withAlphaComponent(0.8)
-        
-        // Update delete button
-        deleteButton.tintColor = theme.deleteButtonColor
-        deleteButton.backgroundColor = theme.backgroundColor.withAlphaComponent(0.9)
         
         // Update shadow
         shadowView.layer.shadowColor = theme.shadowColor.cgColor

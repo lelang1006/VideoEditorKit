@@ -32,7 +32,7 @@ public final class VideoEditorViewController: UIViewController {
     private lazy var muteButton: UIButton = makeMuteButton()
     private lazy var fullscreenButton: UIButton = makeFullscreenButton()
     private lazy var controlsView: UIView = makeControlsView()
-    private lazy var videoTimelineViewController: VideoTimelineViewController = makeVideoTimelineViewController()
+    private lazy var videoTimelineViewController: MultiLayerTimelineViewController = makeVideoTimelineViewController()
     private lazy var videoControlListController: VideoControlListController = makeVideoControlListControllers()
 
     // Thêm property để quản lý controller hiện tại
@@ -357,8 +357,10 @@ fileprivate extension VideoEditorViewController {
         return containerView
     }
 
-    func makeVideoTimelineViewController() -> VideoTimelineViewController {
-        viewFactory.makeVideoTimelineViewController(store: store)
+    func makeVideoTimelineViewController() -> MultiLayerTimelineViewController {
+        let controller = MultiLayerTimelineViewController(store: store)
+        controller.delegate = self
+        return controller
     }
 
     func makeVideoControlListControllers() -> VideoControlListController {
@@ -601,5 +603,34 @@ fileprivate extension VideoEditorViewController {
         } catch {
             print("❌ Failed to configure audio session: \(error)")
         }
+    }
+}
+
+// MARK: - MultiLayerTimelineDelegate
+
+extension VideoEditorViewController: MultiLayerTimelineDelegate {
+    
+    func timeline(_ timeline: MultiLayerTimelineViewController, didSelectItem item: TimelineItem) {
+        // Handle timeline item selection
+        // This could update video controls or highlight the selected item
+        print("📱 Timeline item selected: \(item)")
+    }
+    
+    func timeline(_ timeline: MultiLayerTimelineViewController, didTrimItem item: TimelineItem, newStartTime: CMTime, newDuration: CMTime) {
+        // Handle timeline item trimming
+        // Update the store with new trim positions
+        print("✂️ Timeline item trimmed: \(item) - Start: \(newStartTime.seconds)s, Duration: \(newDuration.seconds)s")
+        
+        // You could update the store here:
+        // store.updateTrimPositions(for: item, startTime: newStartTime, duration: newDuration)
+    }
+    
+    func timeline(_ timeline: MultiLayerTimelineViewController, didAddTrackOfType type: TimelineTrackType) {
+        // Handle new track addition
+        print("➕ New track added: \(type)")
+        
+        // You could update the store or show a picker for the new track content:
+        // store.addTrack(of: type)
+        // or present content picker for this track type
     }
 }

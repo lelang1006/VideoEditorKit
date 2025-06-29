@@ -13,7 +13,6 @@ import UIKit
 protocol MultiLayerTimelineDelegate: AnyObject {
     func timeline(_ timeline: MultiLayerTimelineViewController, didSelectItem item: TimelineItem)
     func timeline(_ timeline: MultiLayerTimelineViewController, didTrimItem item: TimelineItem, newStartTime: CMTime, newDuration: CMTime)
-    func timeline(_ timeline: MultiLayerTimelineViewController, didDeleteItem item: TimelineItem)
     func timeline(_ timeline: MultiLayerTimelineViewController, didAddTrackOfType type: TimelineTrackType)
 }
 
@@ -38,7 +37,7 @@ final class MultiLayerTimelineViewController: UIViewController {
     lazy var scrollView: UIScrollView = makeScrollView()
     lazy var contentView: UIView = makeContentView()
     lazy var timeRulerView: TimeRulerView = makeTimeRulerView()
-    lazy var playheadView: PlayheadView = makePlayheadView()
+    private lazy var carretLayer: CALayer = makeCarretLayer()
     lazy var tracksStackView: UIStackView = makeTracksStackView()
     
     var trackViews: [TimelineTrackView] = []
@@ -78,6 +77,7 @@ final class MultiLayerTimelineViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         updatePlayheadPosition()
+        updateCarretLayerFrame()
         
         // Apply content insets like VideoTimelineViewController
         let horizontal = view.bounds.width / 2
@@ -135,7 +135,6 @@ extension MultiLayerTimelineViewController {
                 break
             }
         }
-        delegate?.timeline(self, didDeleteItem: item)
     }
     
     func updateItem(_ item: TimelineItem) {
@@ -206,9 +205,7 @@ extension MultiLayerTimelineViewController {
     }
     
     func updatePlayheadPosition() {
-        let x = CGFloat(playheadPosition.seconds) * configuration.pixelsPerSecond
-        playheadView.center.x = x
-        playheadView.setCurrentTime(playheadPosition, animated: false)
+        updateCarretLayerFrame()
         
         // Update time ruler scroll position to sync with timeline
         timeRulerView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: 0))
@@ -217,6 +214,14 @@ extension MultiLayerTimelineViewController {
     func updateTimeRuler() {
         let maxDuration = tracks.flatMap { $0.items }.map { $0.startTime + $0.duration }.max() ?? CMTime.zero
         timeRulerView.setDuration(maxDuration)
+    }
+    
+    func updateCarretLayerFrame() {
+        let width: CGFloat = 2.0
+        let height: CGFloat = view.bounds.height
+        let x = view.bounds.midX - width / 2
+        let y: CGFloat = 0
+        carretLayer.frame = CGRect(x: x, y: y, width: width, height: height)
     }
 }
 
@@ -233,7 +238,7 @@ extension MultiLayerTimelineViewController {
         scrollView.addSubview(contentView)
         contentView.addSubview(timeRulerView)
         contentView.addSubview(tracksStackView)
-        contentView.addSubview(playheadView)
+        view.layer.addSublayer(carretLayer)
         
         setupConstraints()
         
@@ -261,10 +266,6 @@ extension MultiLayerTimelineViewController {
         tracksStackView.autoPinEdge(toSuperviewEdge: .left)
         tracksStackView.autoPinEdge(toSuperviewEdge: .right)
         tracksStackView.autoPinEdge(toSuperviewEdge: .bottom)
-        
-        playheadView.autoPinEdge(.top, to: .top, of: timeRulerView)
-        playheadView.autoPinEdge(toSuperviewEdge: .bottom)
-        playheadView.autoSetDimension(.width, toSize: 2)
     }
     
     func setupBindings() {
@@ -292,10 +293,6 @@ extension MultiLayerTimelineViewController {
                 self?.updatePlayheadPosition()
             }
             .store(in: &cancellables)
-        
-        // Setup playhead callbacks - we need to implement these differently
-        // For now, we'll handle playhead interaction through scroll view delegate
-        playheadView.setDragging(false)
     }
 }
 
@@ -321,8 +318,11 @@ extension MultiLayerTimelineViewController {
         return TimeRulerView(configuration: configuration)
     }
     
-    func makePlayheadView() -> PlayheadView {
-        return PlayheadView()
+    func makeCarretLayer() -> CALayer {
+        let layer = CALayer()
+        layer.backgroundColor = #colorLiteral(red: 0.1137254902, green: 0.1137254902, blue: 0.1215686275, alpha: 1).cgColor
+        layer.cornerRadius = 1.0
+        return layer
     }
     
     func makeTracksStackView() -> UIStackView {
@@ -420,10 +420,6 @@ extension MultiLayerTimelineViewController: TimelineTrackViewDelegate {
         delegate?.timeline(self, didTrimItem: updatedItem, newStartTime: updatedItem.startTime, newDuration: updatedItem.duration)
     }
     
-    func trackView(_ trackView: TimelineTrackView, didDeleteItem item: TimelineItem) {
-        removeItem(item)
-    }
-    
     @objc func themeDidChange() {
         updateTheme()
     }
@@ -447,9 +443,6 @@ extension MultiLayerTimelineViewController: TimelineThemeAware {
         view.backgroundColor = theme.backgroundColor
         scrollView.backgroundColor = theme.contentBackgroundColor
         contentView.backgroundColor = theme.contentBackgroundColor
-        
-        // Update playhead appearance
-        playheadView.updateTheme()
         
         // Update time ruler
         timeRulerView.updateTheme()

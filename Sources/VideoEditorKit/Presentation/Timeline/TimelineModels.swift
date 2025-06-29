@@ -138,6 +138,36 @@ public struct TimelineTrack {
     }
 }
 
+// MARK: - Timeline Zoom Level
+
+enum TimelineZoomLevel: String, CaseIterable {
+    case veryCompact = "Very Compact"     // Xem nhiều nhất (20px/s)
+    case compact = "Compact"              // Xem nhiều (44px/s)  
+    case normal = "Normal"                // Cân bằng (100px/s)
+    case detailed = "Detailed"            // Chi tiết (150px/s)
+    case veryDetailed = "Very Detailed"   // Chi tiết nhất (200px/s)
+    
+    var pixelsPerSecond: CGFloat {
+        switch self {
+        case .veryCompact: return 20
+        case .compact: return 44
+        case .normal: return 100
+        case .detailed: return 150
+        case .veryDetailed: return 200
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .veryCompact: return "Xem toàn bộ video trên màn hình"
+        case .compact: return "Xem nhiều phần của video"
+        case .normal: return "Mức zoom cân bằng"
+        case .detailed: return "Xem chi tiết từng phần"
+        case .veryDetailed: return "Xem rất chi tiết, chỉnh sửa chính xác"
+        }
+    }
+}
+
 // MARK: - Timeline Configuration
 
 struct TimelineConfiguration {
@@ -147,34 +177,50 @@ struct TimelineConfiguration {
     let trackSpacing: CGFloat
     let minimumItemWidth: CGFloat
     
-    static let `default` = TimelineConfiguration(
-        timeScale: 600,
-        pixelsPerSecond: 100,
-        trackHeight: 64,
-        trackSpacing: 8,
-        minimumItemWidth: 20
-    )
+    // Default sử dụng Compact level
+    static let `default` = TimelineConfiguration.from(zoomLevel: .compact)
+    
+    // Factory method từ zoom level
+    static func from(zoomLevel: TimelineZoomLevel) -> TimelineConfiguration {
+        return TimelineConfiguration(
+            timeScale: 600,
+            pixelsPerSecond: zoomLevel.pixelsPerSecond,
+            trackHeight: 64,
+            trackSpacing: 8,
+            minimumItemWidth: 20
+        )
+    }
 }
 
 // MARK: - Timeline Configuration Extensions
 
 extension TimelineConfiguration {
     
-    static let zoomed = TimelineConfiguration(
-        timeScale: 600,
-        pixelsPerSecond: 200,
-        trackHeight: 80,
-        trackSpacing: 12,
-        minimumItemWidth: 30
-    )
+    // Preset configurations sử dụng zoom levels
+    static let veryCompact = TimelineConfiguration.from(zoomLevel: .veryCompact)
+    static let compact = TimelineConfiguration.from(zoomLevel: .compact)
+    static let normal = TimelineConfiguration.from(zoomLevel: .normal) 
+    static let detailed = TimelineConfiguration.from(zoomLevel: .detailed)
+    static let veryDetailed = TimelineConfiguration.from(zoomLevel: .veryDetailed)
     
-    static let compact = TimelineConfiguration(
-        timeScale: 600,
-        pixelsPerSecond: 50,
-        trackHeight: 48,
-        trackSpacing: 4,
-        minimumItemWidth: 15
-    )
+    // Deprecated - để backward compatibility
+    static let zoomed = TimelineConfiguration.from(zoomLevel: .veryDetailed)
+    
+    // Method để thay đổi zoom level
+    func withZoomLevel(_ zoomLevel: TimelineZoomLevel) -> TimelineConfiguration {
+        return TimelineConfiguration(
+            timeScale: self.timeScale,
+            pixelsPerSecond: zoomLevel.pixelsPerSecond,
+            trackHeight: self.trackHeight,
+            trackSpacing: self.trackSpacing,
+            minimumItemWidth: self.minimumItemWidth
+        )
+    }
+    
+    // Get current zoom level
+    var currentZoomLevel: TimelineZoomLevel? {
+        return TimelineZoomLevel.allCases.first { $0.pixelsPerSecond == self.pixelsPerSecond }
+    }
 }
 
 // MARK: - Sample Data Creation
