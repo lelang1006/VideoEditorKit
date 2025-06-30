@@ -28,6 +28,12 @@ final class MultiLayerTimelineViewController: UIViewController {
     // Flag to prevent auto-scrolling during trim operations
     private var isTrimInProgress: Bool = false
     
+    // Flag to prevent unintended deselection during layout operations
+    private var isLayoutInProgress: Bool = false
+    
+    // Flag to prevent deselection immediately after trim operations
+    private var isPostTrimProtectionActive: Bool = false
+    
     // MARK: - Properties
     
     weak var delegate: MultiLayerTimelineDelegate?
@@ -164,6 +170,12 @@ extension MultiLayerTimelineViewController {
     }
     
     func updateItem(_ item: TimelineItem) {
+        // Check if this is the currently selected item
+        let wasSelected = selectedItem?.id == item.id
+        
+        // Set layout flag to protect selection during updates
+        isLayoutInProgress = true
+        
         for (trackIndex, var track) in tracks.enumerated() {
             if let itemIndex = track.items.firstIndex(where: { $0.id == item.id }) {
                 tracks[trackIndex].items[itemIndex] = item
@@ -176,10 +188,35 @@ extension MultiLayerTimelineViewController {
             }
         }
         updateContentSize()
+        
+        // Clear layout flag
+        isLayoutInProgress = false
+        
+        // If this item was selected, update the selectedItem and ensure it stays selected
+        if wasSelected {
+            selectedItem = item
+            print("📱 🔄 Item was selected, ensuring it remains selected after update")
+            
+            // Ensure selection is maintained in track views immediately
+            selectItem(item)
+        }
     }
     
     func selectItem(_ item: TimelineItem?) {
-        print("📱 🔄 MultiLayerTimelineViewController.selectItem called with item ID: \(item?.id.uuidString ?? "nil")")
+        print("📱 🔄 MultiLayerTimelineViewController.selectItem called with item ID: \(item?.id ?? "nil")")
+        
+        // Don't clear selection during layout operations unless explicitly setting a new item
+        if isLayoutInProgress && item == nil && selectedItem != nil {
+            print("📱 🚫 Preventing deselection during layout operation")
+            return
+        }
+        
+        // Don't clear selection during post-trim protection period unless explicitly setting a new item
+        if isPostTrimProtectionActive && item == nil && selectedItem != nil {
+            print("📱 🚫 Preventing deselection during post-trim protection period")
+            return
+        }
+        
         selectedItem = item
         
         // Update selection in all track views
@@ -229,7 +266,10 @@ extension MultiLayerTimelineViewController {
         // - Add full timeline width padding at the end to ensure we can scroll to the very end
         // This allows the last second of video to be scrolled to the center of the screen
         let contentWidth = durationWidth + timelineContentWidth
-        let contentHeight = CGFloat(tracks.count) * (configuration.trackHeight + configuration.trackSpacing) + 30 // +30 for ruler height
+        
+        // Calculate proper content height based on actual tracks
+        let tracksHeight = CGFloat(tracks.count) * configuration.trackHeight + CGFloat(max(0, tracks.count - 1)) * configuration.trackSpacing
+        let contentHeight = tracksHeight + 30 // +30 for ruler height
         
         // Set scroll view content size
         scrollView.contentSize = CGSize(width: contentWidth, height: contentHeight)
@@ -247,7 +287,6 @@ extension MultiLayerTimelineViewController {
         )
         
         let tracksY: CGFloat = 30 // Below the time ruler
-        let tracksHeight = contentHeight - 30
         tracksStackView.frame = CGRect(
             x: 0,
             y: tracksY,
@@ -256,9 +295,12 @@ extension MultiLayerTimelineViewController {
         )
         
         // Force scroll view to recognize the new content size
+        // Set layout flag to prevent deselection during scroll view updates
+        isLayoutInProgress = true
         DispatchQueue.main.async {
             self.scrollView.setNeedsLayout()
             self.scrollView.layoutIfNeeded()
+            self.isLayoutInProgress = false
         }
         
         // Update time ruler when content size changes
@@ -506,30 +548,66 @@ extension MultiLayerTimelineViewController: TimelineTrackViewDelegate {
             updatedItem.startTime = validStartTime
         }
         
-        // Special handling for video items - update store trimPositions
-        if let videoItem = updatedItem as? VideoTimelineItem {
-            let totalDuration = videoItem.asset.duration.seconds
-            let trimStartRatio = updatedItem.startTime.seconds / totalDuration
-            let trimEndRatio = (updatedItem.startTime.seconds + updatedItem.duration.seconds) / totalDuration
-            
-            // Update store with new trim positions
-            store.trimPositions = (trimStartRatio, trimEndRatio)
-            
-            print("📹 Video trim updated in store: start=\(trimStartRatio), end=\(trimEndRatio)")
-        }
-        
         updateItem(updatedItem)
         delegate?.timeline(self, didTrimItem: updatedItem, newStartTime: updatedItem.startTime, newDuration: updatedItem.duration)
         
-        // Reset trim flag after a short delay to allow store updates to complete
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        // Ensure the trimmed item remains selected
+        print("📱 🔄 Trim completed, ensuring item remains selected")
+        selectedItem = updatedItem
+        selectItem(updatedItem)
+        
+        // Store the selected item ID for re-selection after potential data reloads
+        let selectedItemId = updatedItem.id
+        
+        // Activate post-trim protection to prevent immediate deselection
+        isPostTrimProtectionActive = true
+        
+        // Update store to sync with rest of app (delayed to avoid interference with selection)
+        if let videoItem = updatedItem as? VideoTimelineItem {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                let totalDuration = videoItem.asset.duration.seconds
+                let trimStartRatio = updatedItem.startTime.seconds / totalDuration
+                let trimEndRatio = (updatedItem.startTime.seconds + updatedItem.duration.seconds) / totalDuration
+                
+                print("📹 Store update - Video trim: start=\(trimStartRatio), end=\(trimEndRatio)")
+                self.store.trimPositions = (trimStartRatio, trimEndRatio)
+                
+                // Re-select item after store update
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.selectItemById(selectedItemId)
+                }
+            }
+        }
+        
+        // Reset protection after operation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             self.isTrimInProgress = false
-            print("📱 🔄 Trim operation completed, auto-scroll re-enabled")
+            self.isPostTrimProtectionActive = false
+            print("📱 🔄 Trim operation completed")
+            
+            // Final selection check
+            self.selectItemById(selectedItemId)
         }
     }
     
     @objc func themeDidChange() {
         updateTheme()
+    }
+    
+    private func selectItemById(_ itemId: String) {
+        print("📱 🔄 Searching for item with ID: \(itemId)")
+        
+        // Find the item by ID across all tracks
+        for track in tracks {
+            if let item = track.items.first(where: { $0.id == itemId }) {
+                print("📱 🔄 Found item by ID, re-selecting")
+                selectedItem = item
+                selectItem(item)
+                return
+            }
+        }
+        
+        print("📱 ⚠️ Could not find item with ID \(itemId) for re-selection")
     }
 }
 
@@ -567,36 +645,121 @@ extension MultiLayerTimelineViewController {
     func setupTimelineWithAsset(_ asset: AVAsset, thumbnails: [CGImage] = []) {
         let duration = asset.duration
         
-        // Create a main video track with the asset
-        var videoTrack = TimelineTrack(type: .video)
-        let videoItem = VideoTimelineItem(
-            asset: asset,
-            thumbnails: thumbnails,
-            startTime: .zero,
-            duration: duration
-        )
-        videoTrack.items = [videoItem]
+        // First priority: Check if current selected item matches the type we need
+        var existingVideoItem: VideoTimelineItem?
+        var existingAudioItem: AudioTimelineItem?
         
-        // Create an audio track if audio exists
-        var newTracks = [videoTrack]
-        if asset.tracks(withMediaType: .audio).count > 0 {
-            var audioTrack = TimelineTrack(type: .audio(.original))
-            let audioItem = AudioTimelineItem(
-                trackType: .audio(.original),
+        // If we have a selected video item, use it (regardless of asset reference)
+        if let selectedVideoItem = selectedItem as? VideoTimelineItem {
+            existingVideoItem = selectedVideoItem
+            print("📹 Using selected video item for preservation: ID=\(selectedVideoItem.id)")
+        }
+        
+        // If we have a selected audio item, use it (regardless of asset reference)  
+        if let selectedAudioItem = selectedItem as? AudioTimelineItem {
+            existingAudioItem = selectedAudioItem
+            print("📹 Using selected audio item for preservation")
+        }
+        
+        // Second priority: Check existing tracks for asset match (fallback)
+        if existingVideoItem == nil || existingAudioItem == nil {
+            for track in tracks {
+                for item in track.items {
+                    if existingVideoItem == nil, let videoItem = item as? VideoTimelineItem, videoItem.asset === asset {
+                        existingVideoItem = videoItem
+                        print("📹 Found existing video item by asset reference: ID=\(videoItem.id)")
+                    }
+                    if existingAudioItem == nil, let audioItem = item as? AudioTimelineItem, audioItem.asset === asset {
+                        existingAudioItem = audioItem
+                        print("📹 Found existing audio item by asset reference")
+                    }
+                }
+            }
+        }
+        
+        // Create a main video track, preserving existing item if available
+        var videoTrack = TimelineTrack(type: .video)
+        let videoItem: VideoTimelineItem
+        
+        if let existing = existingVideoItem {
+            // Update thumbnails but preserve trim data AND ID
+            // Reset startTime to 0 since this is a regenerated timeline (video should start from beginning)
+            videoItem = VideoTimelineItem(
+                id: existing.id,           // Preserve ID for selection tracking
                 asset: asset,
-                waveform: [], // Empty waveform for now, could be enhanced later
-                title: "Main Audio",
-                volume: 1.0,
-                isMuted: false,
+                thumbnails: thumbnails,
+                startTime: .zero,          // Reset to start from timeline beginning
+                duration: existing.duration     // Preserve trimmed duration
+            )
+            print("📹 Preserving existing video item: ID=\(existing.id), startTime=0.0s (reset), duration=\(existing.duration.seconds)s")
+        } else {
+            // Create new item with full duration
+            videoItem = VideoTimelineItem(
+                asset: asset,
+                thumbnails: thumbnails,
                 startTime: .zero,
                 duration: duration
             )
+            print("📹 Creating new video item with full duration, ID=\(videoItem.id)")
+        }
+        
+        videoTrack.items = [videoItem]
+        
+        // Create an audio track if audio exists, preserving existing item if available
+        var newTracks = [videoTrack]
+        if asset.tracks(withMediaType: .audio).count > 0 {
+            var audioTrack = TimelineTrack(type: .audio(.original))
+            let audioItem: AudioTimelineItem
+            
+            if let existing = existingAudioItem {
+                // Preserve existing audio item trim data but reset startTime
+                audioItem = AudioTimelineItem(
+                    trackType: .audio(.original),
+                    asset: asset,
+                    waveform: existing.waveform,
+                    title: existing.title,
+                    volume: existing.volume,
+                    isMuted: existing.isMuted,
+                    startTime: .zero,           // Reset to start from timeline beginning
+                    duration: existing.duration     // Preserve trimmed duration
+                )
+                print("📹 Preserving existing audio item: startTime=0.0s (reset), duration=\(existing.duration.seconds)s")
+            } else {
+                // Create new item with full duration
+                audioItem = AudioTimelineItem(
+                    trackType: .audio(.original),
+                    asset: asset,
+                    waveform: [], // Empty waveform for now, could be enhanced later
+                    title: "Main Audio",
+                    volume: 1.0,
+                    isMuted: false,
+                    startTime: .zero,
+                    duration: duration
+                )
+                print("📹 Creating new audio item with full duration")
+            }
+            
             audioTrack.items = [audioItem]
             newTracks.append(audioTrack)
         }
         
         // Update the timeline with tracks
         self.tracks = newTracks
+        
+        // Re-apply selection if we preserved an existing item
+        if let existing = existingVideoItem, selectedItem?.id == existing.id {
+            print("📹 Re-selecting preserved video item with ID: \(existing.id)")
+            // Find the newly created item with the same ID and re-select it
+            DispatchQueue.main.async {
+                self.selectItemById(existing.id)
+            }
+        } else if let existing = existingAudioItem, selectedItem?.id == existing.id {
+            print("📹 Re-selecting preserved audio item with ID: \(existing.id)")
+            // Find the newly created item with the same ID and re-select it  
+            DispatchQueue.main.async {
+                self.selectItemById(existing.id)
+            }
+        }
         
         // Reset scroll position to beginning (like VideoTimelineViewController)
         DispatchQueue.main.async {

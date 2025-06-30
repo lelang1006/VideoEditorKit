@@ -45,6 +45,9 @@ public final class VideoEditorViewController: UIViewController {
 
     private var cancellables = Set<AnyCancellable>()
     private var durationUpdateCancellable: Cancellable?
+    
+    // Track timeline generation to prevent unnecessary regeneration during trim operations
+    private var currentTimelineAsset: AVAsset?
 
     private let store: VideoEditorStore
     private let viewFactory: VideoEditorViewFactoryProtocol
@@ -107,7 +110,16 @@ fileprivate extension VideoEditorViewController {
             .sink { [weak self] item in
                 guard let self = self else { return }
                 self.videoPlayerController.load(item: item, autoPlay: false)
-                self.videoTimelineViewController.generateTimeline(for: item.asset)
+                
+                // Only regenerate timeline if this is a different asset to avoid resetting trim during operations
+                if self.currentTimelineAsset !== item.asset {
+                    print("📹 Generating timeline for new asset")
+                    self.videoTimelineViewController.generateTimeline(for: item.asset)
+                    self.currentTimelineAsset = item.asset
+                } else {
+                    print("📹 Skipping timeline regeneration - same asset")
+                }
+                
                 self.subscribeToDurationUpdate(for: item)
                 // Update mute button icon when new item is loaded
                 DispatchQueue.main.async {

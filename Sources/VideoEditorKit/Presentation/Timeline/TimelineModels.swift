@@ -27,7 +27,7 @@ public enum AudioTrackSubtype {
 // MARK: - Timeline Item Protocol
 
 public protocol TimelineItem {
-    var id: UUID { get }
+    var id: String { get }
     var startTime: CMTime { get set }
     var duration: CMTime { get set }
     var trackType: TimelineTrackType { get }
@@ -37,7 +37,7 @@ public protocol TimelineItem {
 // MARK: - Concrete Timeline Items
 
 public class VideoTimelineItem: TimelineItem {
-    public let id = UUID()
+    public let id: String
     public var startTime: CMTime
     public var duration: CMTime
     public let trackType: TimelineTrackType = .video
@@ -46,7 +46,17 @@ public class VideoTimelineItem: TimelineItem {
     public let asset: AVAsset
     public let thumbnails: [CGImage]
     
-    public init(asset: AVAsset, thumbnails: [CGImage], startTime: CMTime, duration: CMTime) {
+    public init(asset: AVAsset, thumbnails: [CGImage], startTime: CMTime, duration: CMTime, id: String? = nil) {
+        self.id = id ?? UUID().uuidString
+        self.asset = asset
+        self.thumbnails = thumbnails
+        self.startTime = startTime
+        self.duration = duration
+    }
+    
+    // Internal initializer that preserves ID (for timeline regeneration)
+    internal init(id: String, asset: AVAsset, thumbnails: [CGImage], startTime: CMTime, duration: CMTime) {
+        self.id = id
         self.asset = asset
         self.thumbnails = thumbnails
         self.startTime = startTime
@@ -55,7 +65,7 @@ public class VideoTimelineItem: TimelineItem {
 }
 
 public class AudioTimelineItem: TimelineItem {
-    public let id = UUID()
+    public let id: String
     public var startTime: CMTime
     public var duration: CMTime
     public let trackType: TimelineTrackType
@@ -67,7 +77,8 @@ public class AudioTimelineItem: TimelineItem {
     public let volume: Float
     public let isMuted: Bool
     
-    public init(trackType: TimelineTrackType, asset: AVAsset?, waveform: [Float], title: String, volume: Float, isMuted: Bool, startTime: CMTime, duration: CMTime) {
+    public init(trackType: TimelineTrackType, asset: AVAsset?, waveform: [Float], title: String, volume: Float, isMuted: Bool, startTime: CMTime, duration: CMTime, id: String? = nil) {
+        self.id = id ?? UUID().uuidString
         self.trackType = trackType
         self.asset = asset
         self.waveform = waveform
@@ -80,7 +91,7 @@ public class AudioTimelineItem: TimelineItem {
 }
 
 public class TextTimelineItem: TimelineItem {
-    public let id = UUID()
+    public let id: String
     public var startTime: CMTime
     public var duration: CMTime
     public let trackType: TimelineTrackType = .text
@@ -91,7 +102,8 @@ public class TextTimelineItem: TimelineItem {
     public let color: UIColor
     public let position: CGPoint
     
-    public init(text: String, font: UIFont, color: UIColor, position: CGPoint, startTime: CMTime, duration: CMTime) {
+    public init(text: String, font: UIFont, color: UIColor, position: CGPoint, startTime: CMTime, duration: CMTime, id: String? = nil) {
+        self.id = id ?? UUID().uuidString
         self.text = text
         self.font = font
         self.color = color
@@ -102,7 +114,7 @@ public class TextTimelineItem: TimelineItem {
 }
 
 public class StickerTimelineItem: TimelineItem {
-    public let id = UUID()
+    public let id: String
     public var startTime: CMTime
     public var duration: CMTime
     public let trackType: TimelineTrackType = .sticker
@@ -113,7 +125,8 @@ public class StickerTimelineItem: TimelineItem {
     public let scale: CGFloat
     public let rotation: CGFloat
     
-    public init(image: UIImage, position: CGPoint, scale: CGFloat, rotation: CGFloat, startTime: CMTime, duration: CMTime) {
+    public init(image: UIImage, position: CGPoint, scale: CGFloat, rotation: CGFloat, startTime: CMTime, duration: CMTime, id: String? = nil) {
+        self.id = id ?? UUID().uuidString
         self.image = image
         self.position = position
         self.scale = scale
@@ -126,13 +139,14 @@ public class StickerTimelineItem: TimelineItem {
 // MARK: - Timeline Track
 
 public struct TimelineTrack {
-    public let id = UUID()
+    public let id: String
     public let type: TimelineTrackType
     public var items: [TimelineItem]
     public var isVisible: Bool = true
     public var isLocked: Bool = false
     
-    public init(type: TimelineTrackType, items: [TimelineItem] = []) {
+    public init(type: TimelineTrackType, items: [TimelineItem] = [], id: String? = nil) {
+        self.id = id ?? UUID().uuidString
         self.type = type
         self.items = items
     }

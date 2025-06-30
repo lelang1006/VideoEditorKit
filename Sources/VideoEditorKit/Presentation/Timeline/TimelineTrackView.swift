@@ -71,18 +71,17 @@ extension TimelineTrackView {
         
         // Preserve selection state during update
         let wasSelected = itemView.itemIsSelected
+        print("📱 🔄 TimelineTrackView.updateItem - preserving selection: \(wasSelected)")
         
         itemView.updateItemData(item)
         
-        // Use a short delay to avoid constraint conflicts during layout
-        DispatchQueue.main.async {
-            self.positionItemView(itemView, for: item)
-            
-            // Restore selection if it was previously selected
-            if wasSelected {
-                print("📱 🔄 Preserving selection after updateItem")
-                itemView.setSelected(true)
-            }
+        // Position immediately, then restore selection
+        positionItemView(itemView, for: item)
+        
+        // Restore selection immediately if it was previously selected
+        if wasSelected {
+            print("📱 🔄 TimelineTrackView.updateItem - restoring selection immediately")
+            itemView.setSelected(true)
         }
     }
     
@@ -96,10 +95,10 @@ extension TimelineTrackView {
     }
     
     func selectItem(_ item: TimelineItem?) {
-        print("📱 🔄 TimelineTrackView.selectItem called with item ID: \(item?.id.uuidString ?? "nil")")
+        print("📱 🔄 TimelineTrackView.selectItem called with item ID: \(item?.id ?? "nil")")
         itemViews.forEach { itemView in
             let shouldBeSelected = itemView.item.id == item?.id
-            print("📱 🔄 Item \(itemView.item.id.uuidString) should be selected: \(shouldBeSelected)")
+            print("📱 🔄 Item \(itemView.item.id) should be selected: \(shouldBeSelected)")
             itemView.setSelected(shouldBeSelected)
         }
     }

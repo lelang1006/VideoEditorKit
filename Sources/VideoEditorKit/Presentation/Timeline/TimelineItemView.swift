@@ -662,6 +662,12 @@ private extension TimelineItemView {
             print("📱 🔚 Resize completed, ensuring item stays selected")
             // Đảm bảo item vẫn được selected sau khi trim
             setSelected(true)
+            
+            // Also ensure selection after a brief delay to handle any race conditions
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                self.setSelected(true)
+                print("📱 🔚 Double-checking item selection after trim")
+            }
         }
         
         // Simple haptic feedback for drag end
@@ -741,6 +747,12 @@ private extension TimelineItemView {
                 print("📱 ✅ LEFT TRIM completed: startTime=\(clampedStartTime.seconds)s, duration=\(adjustedDuration.seconds)s")
                 print("📱 📦 Item frame updated: \(frame)")
                 print("📱 🔄 After LEFT TRIM delegate call, itemIsSelected: \(itemIsSelected)")
+                
+                // Ensure selection is maintained after delegate call
+                DispatchQueue.main.async {
+                    self.setSelected(true)
+                    print("📱 ✅ LEFT TRIM: Re-ensuring selection after delegate call")
+                }
             } else {
                 print("📱 ❌ LEFT TRIM validation failed!")
                 print("📱 ❌ clampedStartTime: \(clampedStartTime.seconds), absoluteMinStartTime: \(absoluteMinStartTime.seconds)")
@@ -799,6 +811,12 @@ private extension TimelineItemView {
                 print("📱 ✅ RIGHT TRIM completed: duration=\(clampedDuration.seconds)s")
                 print("📱 📦 Item frame updated: \(frame)")
                 print("📱 🔄 After RIGHT TRIM delegate call, itemIsSelected: \(itemIsSelected)")
+                
+                // Ensure selection is maintained after delegate call
+                DispatchQueue.main.async {
+                    self.setSelected(true)
+                    print("📱 ✅ RIGHT TRIM: Re-ensuring selection after delegate call")
+                }
             } else {
                 print("📱 ❌ RIGHT TRIM validation failed:")
                 print("   clampedDuration: \(clampedDuration.seconds)s (min: \(minimumDuration.seconds)s, max: \(maxAllowedDuration.seconds)s)")
