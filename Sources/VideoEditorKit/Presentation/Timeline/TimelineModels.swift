@@ -176,6 +176,7 @@ struct TimelineConfiguration {
     let trackHeight: CGFloat
     let trackSpacing: CGFloat
     let minimumItemWidth: CGFloat
+    let trackHeaderWidth: CGFloat
     
     // Default sử dụng Compact level
     static let `default` = TimelineConfiguration.from(zoomLevel: .compact)
@@ -187,7 +188,8 @@ struct TimelineConfiguration {
             pixelsPerSecond: zoomLevel.pixelsPerSecond,
             trackHeight: 64,
             trackSpacing: 8,
-            minimumItemWidth: 20
+            minimumItemWidth: 20,
+            trackHeaderWidth: 120
         )
     }
 }
@@ -213,7 +215,8 @@ extension TimelineConfiguration {
             pixelsPerSecond: zoomLevel.pixelsPerSecond,
             trackHeight: self.trackHeight,
             trackSpacing: self.trackSpacing,
-            minimumItemWidth: self.minimumItemWidth
+            minimumItemWidth: self.minimumItemWidth,
+            trackHeaderWidth: self.trackHeaderWidth
         )
     }
     

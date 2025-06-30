@@ -33,6 +33,9 @@ class TimeRulerView: UIView {
     
     override func draw(_ rect: CGRect) {
         super.draw(rect)
+        print("🎨 TimeRulerView draw called with rect: \(rect)")
+        print("   • Duration: \(duration.seconds)s")
+        print("   • Background color: \(backgroundColor?.description ?? "nil")")
         drawTimeMarkers(in: rect)
     }
 }
@@ -47,8 +50,22 @@ extension TimeRulerView {
         setNeedsDisplay()
     }
     
+    func setDuration(_ duration: CMTime, contentWidth: CGFloat) {
+        self.duration = duration
+        // Use the exact content width from the main timeline
+        scrollView.contentSize = CGSize(width: contentWidth, height: bounds.height)
+        rulerContentView.frame = CGRect(x: 0, y: 0, width: contentWidth, height: bounds.height)
+        
+        print("📏 TimeRuler Content Size (synced): \(scrollView.contentSize)")
+        setNeedsDisplay()
+    }
+    
     func setContentOffset(_ offset: CGPoint) {
         scrollView.setContentOffset(offset, animated: false)
+    }
+    
+    func setContentInset(_ inset: UIEdgeInsets) {
+        scrollView.contentInset = inset
     }
 }
 
@@ -72,16 +89,34 @@ extension TimeRulerView {
     }
     
     func updateContentSize() {
-        let contentWidth = CGFloat(duration.seconds) * configuration.pixelsPerSecond
+        // Use same content width calculation as main timeline
+        // This ensures the ruler scrolls in sync with the timeline
+        let durationWidth = CGFloat(duration.seconds) * configuration.pixelsPerSecond
+        
+        // Add the same padding that the main timeline uses
+        // This should be calculated from the parent view, but for now we'll estimate
+        let timelineContentWidth: CGFloat = 255.0 // This should match the main timeline calculation
+        let contentWidth = durationWidth + timelineContentWidth
+        
         scrollView.contentSize = CGSize(width: contentWidth, height: bounds.height)
         rulerContentView.frame = CGRect(x: 0, y: 0, width: contentWidth, height: bounds.height)
+        
+        print("📏 TimeRuler Content Size: \(scrollView.contentSize)")
     }
     
     func drawTimeMarkers(in rect: CGRect) {
-        guard let context = UIGraphicsGetCurrentContext() else { return }
+        guard let context = UIGraphicsGetCurrentContext() else { 
+            print("❌ TimeRulerView: No graphics context available")
+            return 
+        }
+        
+        print("🎨 Drawing time markers in rect: \(rect)")
         
         let totalSeconds = duration.seconds
         let pixelsPerSecond = configuration.pixelsPerSecond
+        
+        print("   • Total seconds: \(totalSeconds)")
+        print("   • Pixels per second: \(pixelsPerSecond)")
         
         // Calculate appropriate time intervals
         let (majorInterval, minorInterval) = calculateTimeIntervals(for: totalSeconds, pixelsPerSecond: pixelsPerSecond)
@@ -98,14 +133,15 @@ extension TimeRulerView {
         let timePerView = Double(viewWidth) / Double(pixelsPerSecond)
         
         // Determine appropriate intervals based on zoom level
+        // Since we want to show labels every 2 seconds, adjust intervals accordingly
         if timePerView < 10 {
-            return (major: 1.0, minor: 0.2) // 1s major, 200ms minor
+            return (major: 2.0, minor: 0.5) // 2s major (for labels), 500ms minor
         } else if timePerView < 60 {
-            return (major: 5.0, minor: 1.0) // 5s major, 1s minor
+            return (major: 2.0, minor: 1.0) // 2s major (for labels), 1s minor
         } else if timePerView < 300 {
-            return (major: 30.0, minor: 5.0) // 30s major, 5s minor
+            return (major: 10.0, minor: 2.0) // 10s major, 2s minor (labels every 2s)
         } else {
-            return (major: 60.0, minor: 10.0) // 1min major, 10s minor
+            return (major: 30.0, minor: 10.0) // 30s major, 10s minor
         }
     }
     
@@ -113,6 +149,8 @@ extension TimeRulerView {
         let theme = TimelineTheme.current
         context.setStrokeColor(theme.primaryTextColor.cgColor)
         context.setLineWidth(1.0)
+        
+        print("🎯 Drawing major ticks with interval: \(interval)s")
         
         var currentTime: Double = 0
         while currentTime <= totalSeconds {
@@ -123,13 +161,31 @@ extension TimeRulerView {
             context.addLine(to: CGPoint(x: x, y: rect.height))
             context.strokePath()
             
-            // Only draw time label for seconds divisible by 2 (0s, 2s, 4s, 6s, etc.)
+            // Show time labels every 2 seconds (0s, 2s, 4s, 6s, 8s, 10s, 12s, etc.)
             let currentTimeInt = Int(currentTime)
             if currentTimeInt % 2 == 0 {
+                print("   • Drawing label at \(currentTime)s (x=\(x))")
                 drawTimeLabel(at: CGPoint(x: x, y: 5), time: currentTime, context: context)
             }
             
             currentTime += interval
+        }
+        
+        // Also ensure we draw labels at 2-second intervals even if they don't align with major ticks
+        var labelTime: Double = 0
+        while labelTime <= totalSeconds {
+            if Int(labelTime) % 2 == 0 {
+                let x = CGFloat(labelTime) * pixelsPerSecond
+                let currentTimeInt = Int(labelTime)
+                
+                // Only draw if we haven't already drawn a label at this position
+                let alreadyDrawn = Int(labelTime / interval) * Int(interval) == Int(labelTime)
+                if !alreadyDrawn {
+                    print("   • Drawing extra label at \(labelTime)s (x=\(x))")
+                    drawTimeLabel(at: CGPoint(x: x, y: 5), time: labelTime, context: context)
+                }
+            }
+            labelTime += 2.0 // Always increment by 2 seconds for labels
         }
     }
     

@@ -89,15 +89,22 @@ extension TimelineTrackView {
     }
     
     private func positionItemView(_ itemView: TimelineItemView, for item: TimelineItem) {
+        // Calculate position relative to timeline start (not relative to view bounds)
         let x = CGFloat(item.startTime.seconds) * configuration.pixelsPerSecond
         let width = CGFloat(item.duration.seconds) * configuration.pixelsPerSecond
         
-        itemView.frame = CGRect(
+        let finalFrame = CGRect(
             x: x,
             y: 0,
             width: max(width, configuration.minimumItemWidth),
             height: configuration.trackHeight
         )
+        
+        print("📍 Positioning item: startTime=\(item.startTime.seconds)s, x=\(x), width=\(width)")
+        print("   Final frame: \(finalFrame)")
+        print("   (Note: x=0 means item starts at timeline 00:00, which is correct for newly imported media)")
+        
+        itemView.frame = finalFrame
     }
     
     private func animateItemsAppearance() {
@@ -130,7 +137,7 @@ private extension TimelineTrackView {
         headerView.autoPinEdge(toSuperviewEdge: .left)
         headerView.autoPinEdge(toSuperviewEdge: .top)
         headerView.autoPinEdge(toSuperviewEdge: .bottom)
-        headerView.autoSetDimension(.width, toSize: 120)
+        headerView.autoSetDimension(.width, toSize: configuration.trackHeaderWidth)
         
         contentView.autoPinEdge(.left, to: .right, of: headerView)
         contentView.autoPinEdge(toSuperviewEdge: .top)

@@ -56,6 +56,10 @@ class TimelineItemView: UIView {
         self.item = item
         self.configuration = configuration
         super.init(frame: .zero)
+        
+        // Disable AutoLayout for the main view since we'll position it using frames
+        translatesAutoresizingMaskIntoConstraints = true
+        
         setupUI()
         setupGestures()
         updateContent()
@@ -135,20 +139,15 @@ extension TimelineItemView {
     }
     
     func setupConstraints() {
-        shadowView.autoPinEdgesToSuperviewEdges()
-        backgroundView.autoPinEdgesToSuperviewEdges()
+        // Disable AutoLayout for all subviews since we'll use frame-based layout
+        shadowView.translatesAutoresizingMaskIntoConstraints = true
+        backgroundView.translatesAutoresizingMaskIntoConstraints = true
+        contentView.translatesAutoresizingMaskIntoConstraints = true
+        leftResizeHandle.translatesAutoresizingMaskIntoConstraints = true
+        rightResizeHandle.translatesAutoresizingMaskIntoConstraints = true
         
-        contentView.autoPinEdgesToSuperviewEdges(with: UIEdgeInsets(top: 2, left: 4, bottom: 2, right: 4))
-        
-        leftResizeHandle.autoPinEdge(toSuperviewEdge: .left)
-        leftResizeHandle.autoPinEdge(toSuperviewEdge: .top)
-        leftResizeHandle.autoPinEdge(toSuperviewEdge: .bottom)
-        leftResizeHandle.autoSetDimension(.width, toSize: 8)
-        
-        rightResizeHandle.autoPinEdge(toSuperviewEdge: .right)
-        rightResizeHandle.autoPinEdge(toSuperviewEdge: .top)
-        rightResizeHandle.autoPinEdge(toSuperviewEdge: .bottom)
-        rightResizeHandle.autoSetDimension(.width, toSize: 8)
+        // Layout will be handled in layoutSubviews
+        setNeedsLayout()
     }
     
     func setupGestures() {
@@ -215,36 +214,84 @@ extension TimelineItemView {
     }
     
     func addVideoThumbnails(_ thumbnails: [CGImage]) {
-        // Create thumbnail strip
-        let thumbnailHeight = contentView.bounds.height - 4
-        let thumbnailWidth = thumbnailHeight * (16.0/9.0) // Assume 16:9 aspect ratio
+        print("🖼️ TimelineItemView: Adding \(thumbnails.count) video thumbnails")
         
+        // Clear existing thumbnails
+        contentView.subviews.forEach { $0.removeFromSuperview() }
+        
+        guard !thumbnails.isEmpty else { 
+            print("⚠️ TimelineItemView: No thumbnails to add")
+            return 
+        }
+        
+        // Get asset aspect ratio from store or use default 16:9
+        let assetAspectRatio: CGFloat = 16.0/9.0
+        
+        // Use frame-based layout to avoid AutoLayout conflicts
         for (index, thumbnail) in thumbnails.enumerated() {
-            let imageView = UIImageView(image: UIImage(cgImage: thumbnail))
+            let imageView = UIImageView()
+            imageView.image = UIImage(cgImage: thumbnail, scale: 1.0, orientation: .up)
             imageView.contentMode = .scaleAspectFill
             imageView.clipsToBounds = true
             
-            contentView.addSubview(imageView)
+            // Disable AutoLayout for thumbnail views
+            imageView.translatesAutoresizingMaskIntoConstraints = true
             
-            let x = CGFloat(index) * thumbnailWidth
-            imageView.frame = CGRect(x: x, y: 2, width: thumbnailWidth, height: thumbnailHeight)
+            contentView.addSubview(imageView)
+        }
+        
+        print("✅ TimelineItemView: Added \(thumbnails.count) thumbnail views")
+        
+        // Layout thumbnails using frames
+        layoutThumbnails(assetAspectRatio: assetAspectRatio)
+    }
+    
+    private func layoutThumbnails(assetAspectRatio: CGFloat) {
+        let contentBounds = contentView.bounds
+        guard contentBounds.height > 4 else { return }
+        
+        let thumbnailHeight = contentBounds.height - 4
+        let thumbnailWidth = max(thumbnailHeight * assetAspectRatio, 32)
+        let inset: CGFloat = 2
+        
+        var currentX: CGFloat = inset
+        
+        for subview in contentView.subviews {
+            if let imageView = subview as? UIImageView {
+                let frame = CGRect(
+                    x: currentX,
+                    y: inset,
+                    width: thumbnailWidth,
+                    height: thumbnailHeight
+                )
+                imageView.frame = frame
+                currentX += thumbnailWidth
+                
+                // Stop if we exceed content width
+                if currentX > contentBounds.width - inset {
+                    break
+                }
+            }
         }
     }
     
     func addWaveform(_ waveform: [Float]) {
         let waveformView = WaveformView(waveform: waveform)
+        waveformView.translatesAutoresizingMaskIntoConstraints = true
         contentView.addSubview(waveformView)
-        waveformView.autoPinEdgesToSuperviewEdges()
+        
+        // Layout using frames in layoutSubviews
+        setNeedsLayout()
     }
     
     func addStickerPreview(_ image: UIImage) {
         let imageView = UIImageView(image: image)
         imageView.contentMode = .scaleAspectFit
+        imageView.translatesAutoresizingMaskIntoConstraints = true
         contentView.addSubview(imageView)
         
-        imageView.autoAlignAxis(toSuperviewAxis: .horizontal)
-        imageView.autoAlignAxis(toSuperviewAxis: .vertical)
-        imageView.autoSetDimensions(to: CGSize(width: 40, height: 40))
+        // Layout using frames in layoutSubviews
+        setNeedsLayout()
     }
     
     func updateSelectionState() {
@@ -274,6 +321,49 @@ extension TimelineItemView {
         
         UIView.animate(withDuration: 0.25, delay: 0, options: [.curveEaseInOut]) {
             self.frame = CGRect(x: x, y: self.frame.origin.y, width: max(width, self.configuration.minimumItemWidth), height: self.frame.height)
+        }
+    }
+    
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        
+        let bounds = self.bounds
+        
+        // Layout main UI components using frames
+        shadowView.frame = bounds
+        backgroundView.frame = bounds
+        contentView.frame = bounds.inset(by: UIEdgeInsets(top: 2, left: 4, bottom: 2, right: 4))
+        
+        // Layout resize handles
+        leftResizeHandle.frame = CGRect(x: 0, y: 0, width: 8, height: bounds.height)
+        rightResizeHandle.frame = CGRect(x: bounds.width - 8, y: 0, width: 8, height: bounds.height)
+        
+        // Layout content based on item type
+        switch item.trackType {
+        case .video:
+            // Layout video thumbnails using frames
+            if contentView.subviews.contains(where: { $0 is UIImageView }) {
+                layoutThumbnails(assetAspectRatio: 16.0/9.0)
+            }
+        case .audio:
+            // Layout waveform view
+            if let waveformView = contentView.subviews.first(where: { $0 is WaveformView }) {
+                waveformView.frame = contentView.bounds
+            }
+        case .sticker:
+            // Layout sticker preview
+            if let imageView = contentView.subviews.first(where: { $0 is UIImageView }) {
+                let size = CGSize(width: 40, height: 40)
+                imageView.frame = CGRect(
+                    x: (contentView.bounds.width - size.width) / 2,
+                    y: (contentView.bounds.height - size.height) / 2,
+                    width: size.width,
+                    height: size.height
+                )
+            }
+        case .text:
+            // Text items might not need special layout
+            break
         }
     }
 }
