@@ -63,28 +63,44 @@ extension TimelineTrackView {
             positionItemView(itemView, for: item)
         }
         
-        // Animate appearance of new items
-        animateItemsAppearance()
+        // Items appear immediately without animation
     }
     
     func updateItem(_ item: TimelineItem) {
         guard let itemView = itemViews.first(where: { $0.item.id == item.id }) else { return }
+        
+        // Preserve selection state during update
+        let wasSelected = itemView.itemIsSelected
+        
         itemView.updateItemData(item)
-        positionItemView(itemView, for: item)
+        
+        // Use a short delay to avoid constraint conflicts during layout
+        DispatchQueue.main.async {
+            self.positionItemView(itemView, for: item)
+            
+            // Restore selection if it was previously selected
+            if wasSelected {
+                print("📱 🔄 Preserving selection after updateItem")
+                itemView.setSelected(true)
+            }
+        }
     }
     
     func removeItem(_ item: TimelineItem) {
         guard let index = itemViews.firstIndex(where: { $0.item.id == item.id }) else { return }
         let itemView = itemViews[index]
         
-        // Use animation system for removal
-        TimelineAnimationSystem.animateItemRemoval(itemView)
+        // Remove immediately without animation
+        itemView.removeFromSuperview()
         itemViews.remove(at: index)
     }
     
     func selectItem(_ item: TimelineItem?) {
+        print("📱 🔄 TimelineTrackView.selectItem called with item ID: \(item?.id.uuidString ?? "nil")")
         itemViews.forEach { itemView in
-            itemView.setSelected(itemView.item.id == item?.id)
+            let shouldBeSelected = itemView.item.id == item?.id
+            print("📱 🔄 Item \(itemView.item.id.uuidString) should be selected: \(shouldBeSelected)")
+            itemView.setSelected(shouldBeSelected)
         }
     }
     
@@ -107,16 +123,7 @@ extension TimelineTrackView {
         itemView.frame = finalFrame
     }
     
-    private func animateItemsAppearance() {
-        itemViews.enumerated().forEach { index, itemView in
-            // Stagger the animation for a nice effect
-            let delay = Double(index) * 0.05
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                TimelineAnimationSystem.animateItemAddition(itemView)
-            }
-        }
-    }
+
 }
 
 // MARK: - Private Methods

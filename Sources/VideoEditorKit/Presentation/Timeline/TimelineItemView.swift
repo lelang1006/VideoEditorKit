@@ -27,27 +27,31 @@ class TimelineItemView: UIView {
     private(set) var item: TimelineItem
     private let configuration: TimelineConfiguration
     
-    private var itemIsSelected: Bool = false {
+    private(set) var itemIsSelected: Bool = false {
         didSet {
             updateSelectionState()
         }
     }
     
-    private var isDragging: Bool = false
     private var isResizing: Bool = false
     private var resizeDirection: ResizeDirection = .none
+    private var isLeftHandleHighlighted: Bool = false
+    private var isRightHandleHighlighted: Bool = false
     
     // Animation and feedback properties
     private var initialFrame: CGRect = .zero
+    private var initialStartTime: CMTime = .zero
+    private var initialDuration: CMTime = .zero
     private var dragStartPoint: CGPoint = .zero
     private var snapIndicatorView: UIView?
     private var feedbackGenerator: UIImpactFeedbackGenerator?
+    private var isTrimInProgress: Bool = false
     
     // UI Components
     lazy var backgroundView: UIView = makeBackgroundView()
     lazy var contentView: UIView = makeContentView()
-    lazy var leftResizeHandle: UIView = makeResizeHandle()
-    lazy var rightResizeHandle: UIView = makeResizeHandle()
+    lazy var leftResizeHandle: UIView = makeLeftResizeHandle()
+    lazy var rightResizeHandle: UIView = makeRightResizeHandle()
     private lazy var shadowView: UIView = makeShadowView()
     
     // Gestures
@@ -79,7 +83,16 @@ class TimelineItemView: UIView {
 extension TimelineItemView {
     
     func setSelected(_ selected: Bool) {
+        print("📱 ⭐ setSelected called with: \(selected), current itemIsSelected: \(itemIsSelected), isTrimInProgress: \(isTrimInProgress)")
+        
+        // If trim is in progress, ignore deselection attempts to prevent flicker
+        if isTrimInProgress && !selected {
+            print("📱 🚫 Ignoring deselection during trim operation")
+            return
+        }
+        
         itemIsSelected = selected
+        print("📱 ⭐ setSelected completed, new itemIsSelected: \(itemIsSelected)")
     }
     
     func updateItemData(_ newItem: TimelineItem) {
@@ -109,11 +122,8 @@ extension TimelineItemView {
         superview.addSubview(snapIndicator)
         snapIndicator.frame = CGRect(x: position, y: 0, width: 2, height: superview.bounds.height)
         
-        // Animate appearance
-        snapIndicator.alpha = 0
-        UIView.animate(withDuration: 0.1) {
-            snapIndicator.alpha = 1
-        }
+        // Set appearance immediately (no animation)
+        snapIndicator.alpha = 1
     }
     
     func removeSnapIndicator() {
@@ -294,30 +304,47 @@ extension TimelineItemView {
     func updateSelectionState() {
         let theme = TimelineTheme.current
         
-        UIView.animate(withDuration: 0.2, delay: 0, options: [.curveEaseInOut]) {
-            if self.itemIsSelected {
-                self.layer.borderColor = theme.selectionBorderColor.cgColor
-                self.layer.borderWidth = 2
-                self.leftResizeHandle.isHidden = false
-                self.rightResizeHandle.isHidden = false
-                self.shadowView.alpha = 1
-                self.transform = CGAffineTransform(scaleX: 1.02, y: 1.02)
-            } else {
-                self.layer.borderWidth = 0
-                self.leftResizeHandle.isHidden = true
-                self.rightResizeHandle.isHidden = true
-                self.shadowView.alpha = 0
-                self.transform = .identity
-            }
+        print("📱 TimelineItemView updateSelectionState: itemIsSelected = \(itemIsSelected)")
+        
+        // Update immediately without animation
+        if itemIsSelected {
+            layer.borderColor = theme.selectionBorderColor.cgColor
+            layer.borderWidth = 2
+            shadowView.alpha = 1
+            // Remove transform to avoid touch detection issues
+            transform = .identity
+            
+            // Show handles only when selected
+            leftResizeHandle.alpha = 1.0
+            rightResizeHandle.alpha = 1.0
+            
+            print("📱 ✅ Item selected with border (no scale)")
+            print("📱 🔧 Handles now visible - left alpha: \(leftResizeHandle.alpha), right alpha: \(rightResizeHandle.alpha)")
+        } else {
+            layer.borderWidth = 0
+            shadowView.alpha = 0
+            transform = .identity
+            
+            // Hide handles when not selected
+            leftResizeHandle.alpha = 0.0
+            rightResizeHandle.alpha = 0.0
+            
+            print("📱 ❌ Item deselected")
+            print("📱 🔧 Handles now hidden - left alpha: \(leftResizeHandle.alpha), right alpha: \(rightResizeHandle.alpha)")
         }
     }
     
     func updateLayout() {
         let x = CGFloat(item.startTime.seconds) * configuration.pixelsPerSecond
         let width = CGFloat(item.duration.seconds) * configuration.pixelsPerSecond
+        let newFrame = CGRect(x: x, y: frame.origin.y, width: max(width, configuration.minimumItemWidth), height: frame.height)
         
-        UIView.animate(withDuration: 0.25, delay: 0, options: [.curveEaseInOut]) {
-            self.frame = CGRect(x: x, y: self.frame.origin.y, width: max(width, self.configuration.minimumItemWidth), height: self.frame.height)
+        print("📱 🚀 updateLayout - setting frame directly (no animation)")
+        frame = newFrame
+        
+        // Schedule a layout pass to avoid constraint conflicts
+        DispatchQueue.main.async {
+            self.setNeedsLayout()
         }
     }
     
@@ -331,9 +358,13 @@ extension TimelineItemView {
         backgroundView.frame = bounds
         contentView.frame = bounds.inset(by: UIEdgeInsets(top: 2, left: 4, bottom: 2, right: 4))
         
-        // Layout resize handles
-        leftResizeHandle.frame = CGRect(x: 0, y: 0, width: 8, height: bounds.height)
-        rightResizeHandle.frame = CGRect(x: bounds.width - 8, y: 0, width: 8, height: bounds.height)
+        // Layout resize handles với kích thước giống HandleLayer (20px width)
+        let handleWidth: CGFloat = 20
+        leftResizeHandle.frame = CGRect(x: 0, y: 0, width: handleWidth, height: bounds.height)
+        rightResizeHandle.frame = CGRect(x: bounds.width - handleWidth, y: 0, width: handleWidth, height: bounds.height)
+        
+        // Layout arrow icons trong handles
+        layoutHandleIcons()
         
         // Layout content based on item type
         switch item.trackType {
@@ -363,6 +394,32 @@ extension TimelineItemView {
             break
         }
     }
+    
+    private func layoutHandleIcons() {
+        // Layout left arrow icon
+        if let leftImageView = leftResizeHandle.subviews.first as? UIImageView {
+            // Icon size giống HandleLayer: 6x16
+            let iconSize = CGSize(width: 6, height: 16)
+            leftImageView.frame = CGRect(
+                x: (leftResizeHandle.bounds.width - iconSize.width) / 2,
+                y: (leftResizeHandle.bounds.height - iconSize.height) / 2,
+                width: iconSize.width,
+                height: iconSize.height
+            )
+        }
+        
+        // Layout right arrow icon
+        if let rightImageView = rightResizeHandle.subviews.first as? UIImageView {
+            // Icon size giống HandleLayer: 6x16
+            let iconSize = CGSize(width: 6, height: 16)
+            rightImageView.frame = CGRect(
+                x: (rightResizeHandle.bounds.width - iconSize.width) / 2,
+                y: (rightResizeHandle.bounds.height - iconSize.height) / 2,
+                width: iconSize.width,
+                height: iconSize.height
+            )
+        }
+    }
 }
 
 // MARK: - Gesture Handlers
@@ -370,8 +427,11 @@ extension TimelineItemView {
 private extension TimelineItemView {
     
     @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+        print("📱 TimelineItemView handleTap - setting selected to true")
         setSelected(true)
-        TimelineHapticFeedback.selection()
+        // Simple haptic feedback for selection
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
         delegate?.itemView(self, didSelectItem: item)
     }
     
@@ -383,9 +443,14 @@ private extension TimelineItemView {
         switch gesture.state {
         case .began:
             initialFrame = frame
+            initialStartTime = item.startTime
+            initialDuration = item.duration
             dragStartPoint = location
             determineGestureType(at: location)
             startDragAnimation()
+            
+            // Visual feedback cho handles
+            updateHandleHighlight()
         case .changed:
             handlePanChanged(translation: translation, velocity: velocity)
         case .ended, .cancelled:
@@ -396,158 +461,360 @@ private extension TimelineItemView {
     }
     
     func startDragAnimation() {
-        TimelineHapticFeedback.dragStart()
+        // Simple haptic feedback for drag start
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
         
-        if isDragging {
-            TimelineAnimationSystem.animateDragStart(self)
-        } else if isResizing {
-            TimelineAnimationSystem.animateResizeStart(self)
-        }
+        // No animation needed - removed resize animation
     }
     
     func determineGestureType(at location: CGPoint) {
-        let resizeThreshold: CGFloat = 12
+        print("📱 🔍 determineGestureType: location=\(location), itemIsSelected=\(itemIsSelected)")
+        print("📱 🔍 View bounds: \(bounds), transform: \(transform)")
+        print("📱 🔍 Left handle: frame=\(leftResizeHandle.frame), alpha=\(leftResizeHandle.alpha)")
+        print("📱 🔍 Right handle: frame=\(rightResizeHandle.frame), alpha=\(rightResizeHandle.alpha)")
         
-        if location.x <= resizeThreshold && !leftResizeHandle.isHidden {
+        // Convert location to account for transform scale
+        let scaledLocation: CGPoint
+        if transform != .identity {
+            // If view is scaled, adjust the location accordingly
+            let scaleX = transform.a
+            let scaleY = transform.d
+            scaledLocation = CGPoint(x: location.x / scaleX, y: location.y / scaleY)
+            print("📱 🔧 Original location: \(location), scaled location: \(scaledLocation)")
+        } else {
+            scaledLocation = location
+        }
+        
+        // Use bounds checking with expanded touch areas
+        let handleWidth: CGFloat = 20
+        let tolerance: CGFloat = 20 // Increased tolerance for much easier touch
+        
+        // Define expanded touch areas for handles using original bounds (not scaled)
+        let originalBounds = CGRect(x: 0, y: 0, width: bounds.width, height: bounds.height)
+        let leftHandleTouchArea = CGRect(x: -tolerance, y: 0, width: handleWidth + tolerance * 2, height: originalBounds.height)
+        let rightHandleTouchArea = CGRect(x: originalBounds.width - handleWidth - tolerance, y: 0, width: handleWidth + tolerance * 2, height: originalBounds.height)
+        
+        print("📱 🔍 Touch areas: left=\(leftHandleTouchArea), right=\(rightHandleTouchArea)")
+        print("📱 🔍 Using location: \(scaledLocation)")
+        print("📱 🔍 Checking handles: left contains=\(leftHandleTouchArea.contains(scaledLocation)), right contains=\(rightHandleTouchArea.contains(scaledLocation))")
+        
+        // Check left handle touch (with expanded touch area)
+        if leftHandleTouchArea.contains(scaledLocation) {
+            print("📱 🎯 Touch on LEFT HANDLE")
+            
+            // Auto-select item if not selected yet
+            if !itemIsSelected {
+                print("📱 🔄 Auto-selecting item for handle resize")
+                setSelected(true)
+                delegate?.itemView(self, didSelectItem: item)
+            }
+            
             isResizing = true
             resizeDirection = .left
-        } else if location.x >= bounds.width - resizeThreshold && !rightResizeHandle.isHidden {
+            isLeftHandleHighlighted = true
+            isTrimInProgress = true // Set trim flag to prevent deselection during trim
+            return
+        } 
+        
+        // Check right handle touch (with expanded touch area)
+        else if rightHandleTouchArea.contains(scaledLocation) {
+            print("📱 🎯 Touch on RIGHT HANDLE") 
+            
+            // Auto-select item if not selected yet
+            if !itemIsSelected {
+                print("📱 🔄 Auto-selecting item for handle resize")
+                setSelected(true)
+                delegate?.itemView(self, didSelectItem: item)
+            }
+            
             isResizing = true
             resizeDirection = .right
-        } else {
-            isDragging = true
-            resizeDirection = .none
+            isRightHandleHighlighted = true
+            isTrimInProgress = true // Set trim flag to prevent deselection during trim
+            return
         }
+        
+        // If not touching handles, allow tap to select but no resize
+        print("📱 🎯 Touch on ITEM BODY - Selection only")
+        isResizing = false
+        resizeDirection = .none
     }
     
     func handlePanChanged(translation: CGPoint, velocity: CGPoint) {
-        if isDragging {
-            handleDrag(translation: translation)
-        } else if isResizing {
+        if isResizing {
             handleResize(translation: translation)
         }
-    }
-    
-    func handleDrag(translation: CGPoint) {
-        // Calculate new position
-        var newFrame = initialFrame
-        newFrame.origin.x += translation.x
-        
-        // Constrain to superview bounds
-        if let superview = superview {
-            newFrame.origin.x = max(0, min(newFrame.origin.x, superview.bounds.width - newFrame.width))
-        }
-        
-        // Calculate snapped time
-        let newStartTime = CMTime(
-            seconds: Double(newFrame.origin.x) / Double(configuration.pixelsPerSecond),
-            preferredTimescale: configuration.timeScale
-        )
-        let snappedTime = snapToGrid(newStartTime)
-        let snappedX = CGFloat(snappedTime.seconds) * configuration.pixelsPerSecond
-        
-        // Show snap indicator if close to snap point
-        if abs(newFrame.origin.x - snappedX) < 10 {
-            showSnapIndicator(at: snappedX)
-            newFrame.origin.x = snappedX
-            TimelineHapticFeedback.snap()
-        } else {
-            removeSnapIndicator()
-        }
-        
-        frame = newFrame
+        // No drag functionality - only resize via handles
     }
     
     func handleResize(translation: CGPoint) {
-        let pixelsPerSecond = configuration.pixelsPerSecond
-        let timeChange = CMTime(seconds: Double(translation.x) / Double(pixelsPerSecond), preferredTimescale: configuration.timeScale)
-        
-        var newStartTime = item.startTime
-        var newDuration = item.duration
-        var newFrame = initialFrame
-        
+        // Only move the handle view itself, don't change the TimelineItemView frame
         switch resizeDirection {
         case .left:
-            // Trim from start
-            let candidateStartTime = item.startTime + timeChange
-            let candidateDuration = item.duration - timeChange
+            // Move left handle based on translation
+            let handleWidth: CGFloat = 20
+            let newX = leftResizeHandle.frame.origin.x + translation.x
             
-            // Ensure minimum duration
-            let minimumDuration = CMTime(seconds: 0.1, preferredTimescale: configuration.timeScale)
-            if candidateDuration >= minimumDuration && candidateStartTime >= .zero {
-                newStartTime = snapToGrid(candidateStartTime)
-                newDuration = item.duration - (newStartTime - item.startTime)
-                
-                let snappedX = CGFloat(newStartTime.seconds) * pixelsPerSecond
-                let snappedWidth = CGFloat(newDuration.seconds) * pixelsPerSecond
-                
-                newFrame.origin.x = snappedX
-                newFrame.size.width = max(snappedWidth, configuration.minimumItemWidth)
+            // Allow more generous left movement to enable reverting trim back to original position
+            // For video items, calculate how far left we can go based on original asset start time
+            let maxLeftMovement: CGFloat
+            if case .video = item.trackType, let videoItem = item as? VideoTimelineItem {
+                // Calculate how much we can expand back towards the original video start (time 0)
+                let currentStartTimePixels = CGFloat(item.startTime.seconds) * configuration.pixelsPerSecond
+                // Allow expanding all the way back to video start time (0), plus some buffer
+                maxLeftMovement = currentStartTimePixels + 50 // 50px buffer for easier interaction
+            } else {
+                // For other item types, use a reasonable limit
+                maxLeftMovement = 100
             }
+            
+            // Constrain handle movement within expanded bounds
+            let constrainedX = max(-maxLeftMovement, min(newX, bounds.width - handleWidth - 20))
+            
+            leftResizeHandle.frame = CGRect(
+                x: constrainedX,
+                y: 0,
+                width: handleWidth,
+                height: bounds.height
+            )
+            layoutHandleIcons()
+            
+            print("📱 📍 Left handle moved to X: \(constrainedX) (translation: \(translation.x), maxLeft: -\(maxLeftMovement))")
             
         case .right:
-            // Trim from end
-            let candidateDuration = item.duration + timeChange
-            let minimumDuration = CMTime(seconds: 0.1, preferredTimescale: configuration.timeScale)
+            // Move right handle based on translation
+            let handleWidth: CGFloat = 20
+            let newX = rightResizeHandle.frame.origin.x + translation.x
             
-            if candidateDuration >= minimumDuration {
-                newDuration = snapToGrid(candidateDuration)
-                let snappedWidth = CGFloat(newDuration.seconds) * pixelsPerSecond
-                newFrame.size.width = max(snappedWidth, configuration.minimumItemWidth)
+            // Allow more generous right movement to enable expanding video duration
+            let maxRightMovement: CGFloat
+            if case .video = item.trackType, let videoItem = item as? VideoTimelineItem {
+                // Calculate how much we can expand based on remaining video duration
+                let currentEndTime = item.startTime + item.duration
+                let originalAssetDuration = videoItem.asset.duration
+                let remainingDuration = originalAssetDuration - currentEndTime
+                let remainingPixels = CGFloat(remainingDuration.seconds) * configuration.pixelsPerSecond
+                maxRightMovement = remainingPixels + 50 // 50px buffer for easier interaction
+            } else {
+                // For other item types, use a reasonable limit
+                maxRightMovement = 200
             }
+            
+            // Constrain handle movement within expanded bounds  
+            let constrainedX = max(20, min(newX, bounds.width + maxRightMovement))
+            
+            rightResizeHandle.frame = CGRect(
+                x: constrainedX,
+                y: 0,
+                width: handleWidth,
+                height: bounds.height
+            )
+            layoutHandleIcons()
+            
+            print("📱 📍 Right handle moved to X: \(constrainedX) (translation: \(translation.x), maxRight: +\(maxRightMovement))")
             
         case .none:
             break
         }
         
-        // Show visual feedback for snapping
-        let isSnapped = (resizeDirection == .left && abs(translation.x - (CGFloat(newStartTime.seconds) * pixelsPerSecond - initialFrame.origin.x)) < 5) ||
-                       (resizeDirection == .right && abs(translation.x - (CGFloat(newDuration.seconds) * pixelsPerSecond - initialFrame.width)) < 5)
-        
-        if isSnapped {
-            TimelineHapticFeedback.snap()
-        }
-        
-        frame = newFrame
+        // Reset translation to prevent accumulation
+        panGesture.setTranslation(.zero, in: superview)
+    }
+    
+    private func updateLeftHandlePosition(relativeX: CGFloat) {
+        let handleWidth: CGFloat = 20
+        // Chỉ thay đổi X position của handle TRONG item, không di chuyển item
+        leftResizeHandle.frame = CGRect(
+            x: relativeX, // Relative position trong item
+            y: 0, 
+            width: handleWidth, 
+            height: bounds.height
+        )
+        layoutHandleIcons() // Update arrow icon position
+        print("📱 🔧 Left handle frame updated: \(leftResizeHandle.frame)")
+    }
+    
+    private func updateRightHandlePosition(relativeX: CGFloat) {
+        let handleWidth: CGFloat = 20
+        // Chỉ thay đổi X position của handle TRONG item, không di chuyển item
+        rightResizeHandle.frame = CGRect(
+            x: relativeX,
+            y: 0,
+            width: handleWidth,
+            height: bounds.height
+        )
+        layoutHandleIcons() // Update arrow icon position
+        print("📱 🔧 Right handle frame updated: \(rightResizeHandle.frame)")
     }
     
     func handlePanEnded(velocity: CGPoint) {
         removeSnapIndicator()
         
-        // Calculate final position/size based on current frame
-        let finalStartTime = CMTime(
-            seconds: Double(frame.origin.x) / Double(configuration.pixelsPerSecond),
-            preferredTimescale: configuration.timeScale
-        )
-        let finalDuration = CMTime(
-            seconds: Double(frame.width) / Double(configuration.pixelsPerSecond),
-            preferredTimescale: configuration.timeScale
-        )
-        
-        // Animate back to normal state
-        if isDragging {
-            TimelineAnimationSystem.animateDragEnd(self, velocity: velocity)
-        } else if isResizing {
-            TimelineAnimationSystem.animateResizeEnd(self)
+        if isResizing {
+            print("📱 🔧 Pan ended in RESIZE mode, calling performTrimBasedOnHandlePositions...")
+            
+            // RESIZE mode: Thực hiện trim video dựa trên vị trí handles
+            performTrimBasedOnHandlePositions()
+            
+            // No animation needed - removed resize end animation
+            
+            print("📱 🔚 Resize completed, ensuring item stays selected")
+            // Đảm bảo item vẫn được selected sau khi trim
+            setSelected(true)
         }
         
-        TimelineHapticFeedback.dragEnd()
+        // Simple haptic feedback for drag end
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
         
-        // Update item data
-        if isDragging {
-            item.startTime = finalStartTime
-            delegate?.itemView(self, didTrimItem: item, newStartTime: finalStartTime, newDuration: item.duration)
-        } else if isResizing {
-            item.startTime = finalStartTime
-            item.duration = finalDuration
-            delegate?.itemView(self, didTrimItem: item, newStartTime: finalStartTime, newDuration: finalDuration)
-        }
-        
-        // Reset state
-        isDragging = false
+        // Reset states
         isResizing = false
+        isLeftHandleHighlighted = false
+        isRightHandleHighlighted = false
         resizeDirection = .none
         initialFrame = .zero
+        isTrimInProgress = false // Clear trim flag to allow normal selection behavior
+        
+        // Reset handle highlight
+        updateHandleHighlight()
+        
+        // Reset handle positions về normal
+        resetHandlePositions()
+        
+        print("📱 🔚 Pan ended, item should remain selected: \(itemIsSelected)")
+    }
+    
+    private func performTrimBasedOnHandlePositions() {
+        print("📱 🎬 performTrimBasedOnHandlePositions called with resizeDirection: \(resizeDirection)")
+        
+        let pixelsPerSecond = configuration.pixelsPerSecond
+        
+        switch resizeDirection {
+        case .left:
+            // For left handle trim, we need to calculate based on how far we can expand left
+            let handleRelativeX = leftResizeHandle.frame.origin.x // Relative position trong item
+            
+            // If handleRelativeX is negative, we're expanding to the left (reverting trim)
+            // If handleRelativeX is positive, we're trimming more from the left
+            let deltaTime = CMTime(
+                seconds: Double(handleRelativeX) / Double(pixelsPerSecond),
+                preferredTimescale: configuration.timeScale
+            )
+            
+            // Calculate new start time and duration
+            let newStartTime = initialStartTime + deltaTime  
+            let newDuration = initialDuration - deltaTime
+            
+            print("📱 🔍 LEFT TRIM validation: handleRelativeX=\(handleRelativeX), deltaTime=\(deltaTime.seconds), newStartTime=\(newStartTime.seconds), newDuration=\(newDuration.seconds)")
+            
+            // For video items, we can expand all the way back to the original asset start (time 0)
+            // but the calculated newStartTime should never go below 0
+            let absoluteMinStartTime: CMTime = .zero
+            let minimumDuration = CMTime(seconds: 0.5, preferredTimescale: configuration.timeScale)
+            
+            // Clamp the newStartTime to not go below 0, and adjust duration accordingly
+            let clampedStartTime = max(newStartTime, absoluteMinStartTime)
+            let adjustedDuration = (initialStartTime + initialDuration) - clampedStartTime
+            
+            print("📱 🔍 Video item: absoluteMinStartTime=\(absoluteMinStartTime.seconds)")
+            print("📱 🔍 Original calculation: newStartTime=\(newStartTime.seconds), newDuration=\(newDuration.seconds)")
+            print("📱 🔍 Clamped calculation: clampedStartTime=\(clampedStartTime.seconds), adjustedDuration=\(adjustedDuration.seconds)")
+            print("📱 🔍 Validation: clampedStartTime(\(clampedStartTime.seconds)) >= absoluteMinStartTime(\(absoluteMinStartTime.seconds))? \(clampedStartTime >= absoluteMinStartTime)")
+            print("📱 🔍 Validation: adjustedDuration(\(adjustedDuration.seconds)) >= minimumDuration(\(minimumDuration.seconds))? \(adjustedDuration >= minimumDuration)")
+            
+            if clampedStartTime >= absoluteMinStartTime && adjustedDuration >= minimumDuration {
+                item.startTime = clampedStartTime
+                item.duration = adjustedDuration
+                
+                // Update frame immediately during trim for responsive feel
+                let newItemX = CGFloat(clampedStartTime.seconds) * pixelsPerSecond
+                let newItemWidth = CGFloat(adjustedDuration.seconds) * pixelsPerSecond
+                
+                // Use CATransaction to update frame without triggering layout conflicts
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                frame = CGRect(x: newItemX, y: frame.origin.y, width: newItemWidth, height: frame.height)
+                CATransaction.commit()
+                
+                delegate?.itemView(self, didTrimItem: item, newStartTime: clampedStartTime, newDuration: adjustedDuration)
+                print("📱 ✅ LEFT TRIM completed: startTime=\(clampedStartTime.seconds)s, duration=\(adjustedDuration.seconds)s")
+                print("📱 📦 Item frame updated: \(frame)")
+                print("📱 🔄 After LEFT TRIM delegate call, itemIsSelected: \(itemIsSelected)")
+            } else {
+                print("📱 ❌ LEFT TRIM validation failed!")
+                print("📱 ❌ clampedStartTime: \(clampedStartTime.seconds), absoluteMinStartTime: \(absoluteMinStartTime.seconds)")
+                print("📱 ❌ adjustedDuration: \(adjustedDuration.seconds), minimumDuration: \(minimumDuration.seconds)")
+            }
+            
+        case .right:
+            // Calculate new duration based on right handle position
+            let handleRelativeX = rightResizeHandle.frame.origin.x // Relative position trong item
+            let handleWidth: CGFloat = 20
+            let newWidth = handleRelativeX + handleWidth // Total width dựa trên handle position
+            let newDuration = CMTime(
+                seconds: Double(newWidth) / Double(pixelsPerSecond),
+                preferredTimescale: configuration.timeScale
+            )
+            
+            print("📱 🔍 RIGHT TRIM validation: handleRelativeX=\(handleRelativeX), newWidth=\(newWidth), newDuration=\(newDuration.seconds)")
+            
+            // Validate constraints - check both minimum duration and asset bounds for video items
+            let minimumDuration = CMTime(seconds: 0.5, preferredTimescale: configuration.timeScale)
+            let maxAllowedDuration: CMTime
+            
+            // For video items, don't allow expanding beyond original asset duration
+            if case .video = item.trackType, let videoItem = item as? VideoTimelineItem {
+                // Calculate maximum allowed duration from current start time
+                let originalAssetDuration = videoItem.asset.duration
+                let maxDurationFromCurrentStart = originalAssetDuration - item.startTime
+                maxAllowedDuration = maxDurationFromCurrentStart
+                print("📱 🔍 Video item: originalAssetDuration=\(originalAssetDuration.seconds), maxAllowedDuration=\(maxAllowedDuration.seconds)")
+            } else {
+                // For other item types, use a generous maximum
+                maxAllowedDuration = CMTime(seconds: 3600, preferredTimescale: configuration.timeScale) // 1 hour
+                print("📱 🔍 Non-video item: maxAllowedDuration=\(maxAllowedDuration.seconds)")
+            }
+            
+            // Clamp the duration to valid range
+            let clampedDuration = max(minimumDuration, min(newDuration, maxAllowedDuration))
+            
+            print("📱 🔍 Original calculation: newDuration=\(newDuration.seconds)")
+            print("📱 🔍 Clamped calculation: clampedDuration=\(clampedDuration.seconds)")
+            print("📱 🔍 Range: min=\(minimumDuration.seconds), max=\(maxAllowedDuration.seconds)")
+            
+            if clampedDuration >= minimumDuration && clampedDuration <= maxAllowedDuration {
+                item.duration = clampedDuration
+                
+                // Update frame immediately during trim for responsive feel
+                let newItemWidth = CGFloat(clampedDuration.seconds) * pixelsPerSecond
+                
+                // Use CATransaction to update frame without triggering layout conflicts
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                frame = CGRect(x: frame.origin.x, y: frame.origin.y, width: newItemWidth, height: frame.height)
+                CATransaction.commit()
+                
+                delegate?.itemView(self, didTrimItem: item, newStartTime: item.startTime, newDuration: clampedDuration)
+                print("📱 ✅ RIGHT TRIM completed: duration=\(clampedDuration.seconds)s")
+                print("📱 📦 Item frame updated: \(frame)")
+                print("📱 🔄 After RIGHT TRIM delegate call, itemIsSelected: \(itemIsSelected)")
+            } else {
+                print("📱 ❌ RIGHT TRIM validation failed:")
+                print("   clampedDuration: \(clampedDuration.seconds)s (min: \(minimumDuration.seconds)s, max: \(maxAllowedDuration.seconds)s)")
+            }
+            
+        case .none:
+            break
+        }
+    }
+    
+    private func resetHandlePositions() {
+        // Reset handles về vị trí normal
+        let handleWidth: CGFloat = 20
+        leftResizeHandle.frame = CGRect(x: 0, y: 0, width: handleWidth, height: bounds.height)
+        rightResizeHandle.frame = CGRect(x: bounds.width - handleWidth, y: 0, width: handleWidth, height: bounds.height)
+        layoutHandleIcons()
     }
 }
 
@@ -570,10 +837,53 @@ extension TimelineItemView {
     }
     
     func makeResizeHandle() -> UIView {
-        let theme = TimelineTheme.current
         let view = UIView()
-        view.backgroundColor = theme.resizeHandleColor.withAlphaComponent(0.8)
-        view.isHidden = true
+        view.backgroundColor = UIColor.border // Màu giống HandleLayer
+        view.layer.cornerRadius = 4 // Làm tròn góc như HandleLayer
+        view.layer.borderWidth = 1
+        view.layer.borderColor = UIColor.systemGray4.cgColor
+        view.alpha = 0.0  // Hidden until selected
+        
+        // Thêm shadow nhẹ để nổi bật
+        view.layer.shadowColor = UIColor.black.cgColor
+        view.layer.shadowOffset = CGSize(width: 0, height: 1)
+        view.layer.shadowRadius = 2
+        view.layer.shadowOpacity = 0.2
+        
+        return view
+    }
+    
+    func makeLeftResizeHandle() -> UIView {
+        let view = makeResizeHandle()
+        
+        // Thêm left arrow icon giống HandleLayer
+        let imageView = UIImageView()
+        if let leftArrowImage = UIImage(named: "LeftArrow", in: .module, compatibleWith: nil) {
+            imageView.image = leftArrowImage
+            imageView.contentMode = .scaleAspectFit
+            imageView.tintColor = .black
+        }
+        
+        view.addSubview(imageView)
+        imageView.translatesAutoresizingMaskIntoConstraints = true
+        
+        return view
+    }
+    
+    func makeRightResizeHandle() -> UIView {
+        let view = makeResizeHandle()
+        
+        // Thêm right arrow icon giống HandleLayer
+        let imageView = UIImageView()
+        if let rightArrowImage = UIImage(named: "RightArrow", in: .module, compatibleWith: nil) {
+            imageView.image = rightArrowImage
+            imageView.contentMode = .scaleAspectFit
+            imageView.tintColor = .black
+        }
+        
+        view.addSubview(imageView)
+        imageView.translatesAutoresizingMaskIntoConstraints = true
+        
         return view
     }
     
@@ -644,9 +954,9 @@ extension TimelineItemView: TimelineThemeAware {
         // Update colors based on content
         updateContent()
         
-        // Update resize handles
-        leftResizeHandle.backgroundColor = theme.resizeHandleColor.withAlphaComponent(0.8)
-        rightResizeHandle.backgroundColor = theme.resizeHandleColor.withAlphaComponent(0.8)
+        // Update resize handles với màu giống HandleLayer
+        leftResizeHandle.backgroundColor = UIColor.border
+        rightResizeHandle.backgroundColor = UIColor.border
         
         // Update shadow
         shadowView.layer.shadowColor = theme.shadowColor.cgColor
@@ -654,6 +964,27 @@ extension TimelineItemView: TimelineThemeAware {
         // Update selection if selected
         if itemIsSelected {
             layer.borderColor = theme.selectionBorderColor.cgColor
+        }
+    }
+    
+    private func updateHandleHighlight() {
+        // Update immediately without animation
+        // Left handle highlight
+        if isLeftHandleHighlighted {
+            leftResizeHandle.backgroundColor = UIColor.systemYellow.withAlphaComponent(0.9)
+            leftResizeHandle.transform = CGAffineTransform(scaleX: 1.1, y: 1.0)
+        } else {
+            leftResizeHandle.backgroundColor = UIColor.border
+            leftResizeHandle.transform = .identity
+        }
+        
+        // Right handle highlight
+        if isRightHandleHighlighted {
+            rightResizeHandle.backgroundColor = UIColor.systemYellow.withAlphaComponent(0.9)
+            rightResizeHandle.transform = CGAffineTransform(scaleX: 1.1, y: 1.0)
+        } else {
+            rightResizeHandle.backgroundColor = UIColor.border
+            rightResizeHandle.transform = .identity
         }
     }
 }
