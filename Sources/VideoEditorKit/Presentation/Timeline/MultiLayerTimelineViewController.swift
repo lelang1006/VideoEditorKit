@@ -83,10 +83,10 @@ final class MultiLayerTimelineViewController: UIViewController {
         updatePlayheadPosition()
         updateCarretLayerFrame()
         
-        // Apply content insets like VideoTimelineViewController
-        // Use timeline content width (excluding track header) for proper centering
+        // Apply content insets to allow full timeline scrollability
+        // We need enough padding to center both the start (00:00) and end of the timeline
         let timelineContentWidth = view.bounds.width - configuration.trackHeaderWidth
-        let horizontal = timelineContentWidth / 2
+        let horizontal = timelineContentWidth / 2 // Full half-width padding for proper centering
         let contentInset = UIEdgeInsets(top: 0, left: horizontal, bottom: 0, right: horizontal)
         
         scrollView.contentInset = contentInset
@@ -231,7 +231,8 @@ extension MultiLayerTimelineViewController {
         let timelineContentWidth = view.bounds.width - configuration.trackHeaderWidth
         // - Duration converted to pixels 
         let durationWidth = CGFloat(maxDuration.seconds) * configuration.pixelsPerSecond
-        // - Add padding on both sides to allow centering (50% of timeline content width on each side)
+        // - Add full timeline width padding at the end to ensure we can scroll to the very end
+        // This allows the last second of video to be scrolled to the center of the screen
         let contentWidth = durationWidth + timelineContentWidth
         let contentHeight = CGFloat(tracks.count) * (configuration.trackHeight + configuration.trackSpacing) + 30 // +30 for ruler height
         
@@ -298,15 +299,21 @@ extension MultiLayerTimelineViewController {
     func updatePlayheadPosition() {
         updateCarretLayerFrame()
         
-        // Calculate scroll position like VideoTimelineViewController
-        // The playhead should be centered, so we offset by content width / 2
+        // Calculate scroll position to center current time under the playhead
         let currentTime = store.playheadProgress
-        let totalDuration = tracks.flatMap { $0.items }.map { $0.startTime + $0.duration }.max() ?? CMTime.zero
         
-        if totalDuration.seconds > 0 {
-            let fractionCompleted = currentTime.seconds / totalDuration.seconds
-            let x = scrollView.contentSize.width * CGFloat(fractionCompleted) - (scrollView.contentSize.width / 2)
-            let point = CGPoint(x: x, y: 0)
+        if currentTime.seconds >= 0 {
+            // Convert current time to pixels
+            let currentTimePixels = CGFloat(currentTime.seconds) * configuration.pixelsPerSecond
+            // Calculate offset to center this time position under the fixed playhead
+            let centerOffset = currentTimePixels - scrollView.contentInset.left
+            let point = CGPoint(x: centerOffset, y: 0)
+            
+            print("📍 updatePlayheadPosition:")
+            print("   current time: \(currentTime.seconds)s")
+            print("   pixels: \(currentTimePixels)")
+            print("   center offset: \(centerOffset)")
+            print("   scroll to: \(point)")
             
             // Update main timeline scroll
             scrollView.setContentOffset(point, animated: false)
@@ -321,7 +328,7 @@ extension MultiLayerTimelineViewController {
         // Pass the same content width calculation to ensure perfect sync
         let timelineContentWidth = view.bounds.width - configuration.trackHeaderWidth
         let durationWidth = CGFloat(maxDuration.seconds) * configuration.pixelsPerSecond
-        let contentWidth = durationWidth + timelineContentWidth
+        let contentWidth = durationWidth + timelineContentWidth // Match updateContentSize calculation exactly
         
         timeRulerView.setDuration(maxDuration, contentWidth: contentWidth)
     }
@@ -329,11 +336,17 @@ extension MultiLayerTimelineViewController {
     func updateCarretLayerFrame() {
         let width: CGFloat = 2.0
         let height: CGFloat = view.bounds.height
-        // Position playhead at center of timeline content area (accounting for track header width)
+        
+        // Position playhead at the center of the timeline content area (excluding track header)
+        // This ensures 00:00 appears exactly under the playhead when properly centered
+        let timelineContentStart = configuration.trackHeaderWidth
         let timelineContentWidth = view.bounds.width - configuration.trackHeaderWidth
-        let x = configuration.trackHeaderWidth + (timelineContentWidth / 2) - (width / 2)
+        let x = timelineContentStart + (timelineContentWidth / 2) - (width / 2)
         let y: CGFloat = 0
         carretLayer.frame = CGRect(x: x, y: y, width: width, height: height)
+        
+        print("🎯 Playhead positioned at timeline center: x=\(x), timelineStart=\(timelineContentStart), timelineWidth=\(timelineContentWidth)")
+        print("   Expected 00:00 position when centered: \(timelineContentStart + scrollView.contentInset.left)")
     }
 }
 
@@ -465,23 +478,26 @@ extension MultiLayerTimelineViewController: UIScrollViewDelegate {
     }
     
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        // Update seeker value (same calculation as VideoTimelineViewController)
-        let adjustedContentSize = max(scrollView.contentSize.width, 1.0) // Avoid division by zero
-        seekerValue = Double((scrollView.contentOffset.x + (adjustedContentSize / 2)) / adjustedContentSize)
+        // Update time ruler scroll position to sync with timeline
+        timeRulerView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: 0))
         
-        // Update playhead position for visual feedback
+        // Calculate current time based on scroll position
         if isSeeking {
-            // Calculate time based on scroll position accounting for center offset
-            let centerOffset = scrollView.contentSize.width / 2
-            let adjustedOffset = scrollView.contentOffset.x + centerOffset
-            let timeSeconds = Double(adjustedOffset) / Double(configuration.pixelsPerSecond)
+            // Convert scroll position back to time
+            let scrollOffsetWithInset = scrollView.contentOffset.x + scrollView.contentInset.left
+            let timeSeconds = Double(scrollOffsetWithInset) / Double(configuration.pixelsPerSecond)
             let newTime = CMTime(seconds: max(timeSeconds, 0), preferredTimescale: configuration.timeScale)
             playheadPosition = newTime
+            
+            print("🔄 Scrolling - Time: \(timeSeconds)s, Offset: \(scrollView.contentOffset.x)")
         }
         
-        // Update time ruler scroll position to sync with timeline
-        // Both scrollViews have same contentInset, so direct sync works
-        timeRulerView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: 0))
+        // Update seeker value for store integration
+        let maxDuration = tracks.flatMap { $0.items }.map { $0.startTime + $0.duration }.max() ?? CMTime.zero
+        if maxDuration.seconds > 0 {
+            let currentTimeSeconds = Double(scrollView.contentOffset.x + scrollView.contentInset.left) / Double(configuration.pixelsPerSecond)
+            seekerValue = currentTimeSeconds / maxDuration.seconds
+        }
     }
 }
 
@@ -620,6 +636,7 @@ extension MultiLayerTimelineViewController {
         // For initial positioning (fractionCompleted = 0), center the timeline like VideoTimelineViewController
         if fractionCompleted == 0.0 {
             // Center position: scroll so that time 0 appears at center of screen
+            // This should align items at startTime=0 with the center playhead
             let centerX = -scrollView.contentInset.left
             let point = CGPoint(x: centerX, y: 0)
             
@@ -627,22 +644,28 @@ extension MultiLayerTimelineViewController {
             print("   contentInset.left: \(scrollView.contentInset.left)")
             print("   centerX: \(centerX)")
             print("   point: \(point)")
+            print("   (This positions timeline items at x=0 under the center playhead)")
             
             scrollView.setContentOffset(point, animated: false)
         } else {
             // Normal calculation for playback position
             let maxDuration = tracks.flatMap { $0.items }.map { $0.startTime + $0.duration }.max() ?? CMTime.zero
-            let totalWidth = CGFloat(maxDuration.seconds) * configuration.pixelsPerSecond
-            let x = totalWidth * CGFloat(fractionCompleted) - scrollView.contentInset.left
-            let point = CGPoint(x: x, y: 0)
             
-            print("🔄 updateScrollViewContentOffset (PLAYBACK MODE):")
-            print("   fractionCompleted: \(fractionCompleted)")
-            print("   totalWidth: \(totalWidth)")
-            print("   calculated x: \(x)")
-            print("   point: \(point)")
-            
-            scrollView.setContentOffset(point, animated: false)
+            if maxDuration.seconds > 0 {
+                // Calculate the timeline position based on current playback time
+                let currentTimePixels = CGFloat(store.playheadProgress.seconds) * configuration.pixelsPerSecond
+                // Offset to center the current time under the playhead
+                let centerOffset = currentTimePixels - scrollView.contentInset.left
+                let point = CGPoint(x: centerOffset, y: 0)
+                
+                print("🔄 updateScrollViewContentOffset (PLAYBACK MODE):")
+                print("   current time: \(store.playheadProgress.seconds)s")
+                print("   currentTimePixels: \(currentTimePixels)")
+                print("   centerOffset: \(centerOffset)")
+                print("   point: \(point)")
+                
+                scrollView.setContentOffset(point, animated: false)
+            }
         }
         
         // Sync time ruler (both have same contentInset)

@@ -62,7 +62,7 @@ public struct TimelineTheme {
         backgroundColor: UIColor.systemBackground,
         contentBackgroundColor: UIColor.systemBackground,
         trackBackgroundColor: UIColor.systemGray6,
-        trackHeaderBackgroundColor: UIColor.systemGray5,
+        trackHeaderBackgroundColor: UIColor.systemBackground,
         
         // Text Colors
         primaryTextColor: UIColor.label,
