@@ -75,7 +75,9 @@ final class FilterVideoControlViewController: BaseVideoControlViewController {
     }
 
     override func resetToInitialValues() {
-        selectedFilter = initialFilter
+        if selectedFilter != initialFilter {
+            selectedFilter = initialFilter
+        }
     }
 
     override func onApplyAction() {

@@ -114,7 +114,9 @@ final class TrimVideoControlViewController: BaseVideoControlViewController {
     }
             
     override func resetToInitialValues() {
-        trimPositions = initialTrimPositions
+        if trimPositions != initialTrimPositions {
+            trimPositions = initialTrimPositions
+        }
     }
     
     // MARK: Public Methods

@@ -78,7 +78,9 @@ final class CropVideoControlViewController: BaseVideoControlViewController {
     }
         
     override func resetToInitialValues() {
-        croppingPreset = initialCroppingPreset
+        if croppingPreset != initialCroppingPreset {
+            croppingPreset = initialCroppingPreset
+        }
     }
 }
 

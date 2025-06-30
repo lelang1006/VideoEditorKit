@@ -243,7 +243,7 @@ extension VideoEditorStore {
     }
     
     func videoTimeline(for asset: AVAsset, in bounds: CGRect) -> AnyPublisher<[CGImage], Error> {
-        generator.videoTimeline(for: asset, in: bounds, numberOfFrames: numberOfFrames(within: bounds))
+        generator.videoTimeline(for: asset, in: bounds, numberOfFrames: numberOfFrames())
     }
 
     func export(to url: URL) -> AnyPublisher<Void, Error> {
@@ -256,9 +256,11 @@ extension VideoEditorStore {
 // MARK: Private Accessors
 
 fileprivate extension VideoEditorStore {
-    func numberOfFrames(within bounds: CGRect) -> Int {
-        let frameWidth = bounds.height * assetAspectRatio
-        return Int(bounds.width / frameWidth) + 1
+    func numberOfFrames() -> Int {
+        // Calculate number of thumbnails based on video duration
+        // Each thumbnail represents a fixed duration (see TimelineItemView.thumbnailDurationInSeconds)
+        let durationInSeconds = originalAsset.duration.seconds
+        return Int(ceil(durationInSeconds / TimelineItemView.thumbnailDurationInSeconds))
     }
 }
 

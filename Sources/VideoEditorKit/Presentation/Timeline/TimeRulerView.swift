@@ -33,9 +33,6 @@ class TimeRulerView: UIView {
     
     override func draw(_ rect: CGRect) {
         super.draw(rect)
-        print("🎨 TimeRulerView draw called with rect: \(rect)")
-        print("   • Duration: \(duration.seconds)s")
-        print("   • Background color: \(backgroundColor?.description ?? "nil")")
         drawTimeMarkers(in: rect)
     }
 }
@@ -56,7 +53,6 @@ extension TimeRulerView {
         scrollView.contentSize = CGSize(width: contentWidth, height: bounds.height)
         rulerContentView.frame = CGRect(x: 0, y: 0, width: contentWidth, height: bounds.height)
         
-        print("📏 TimeRuler Content Size (synced): \(scrollView.contentSize)")
         setNeedsDisplay()
     }
     
@@ -100,23 +96,15 @@ extension TimeRulerView {
         
         scrollView.contentSize = CGSize(width: contentWidth, height: bounds.height)
         rulerContentView.frame = CGRect(x: 0, y: 0, width: contentWidth, height: bounds.height)
-        
-        print("📏 TimeRuler Content Size: \(scrollView.contentSize)")
     }
     
     func drawTimeMarkers(in rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { 
-            print("❌ TimeRulerView: No graphics context available")
             return 
         }
         
-        print("🎨 Drawing time markers in rect: \(rect)")
-        
         let totalSeconds = duration.seconds
         let pixelsPerSecond = configuration.pixelsPerSecond
-        
-        print("   • Total seconds: \(totalSeconds)")
-        print("   • Pixels per second: \(pixelsPerSecond)")
         
         // Calculate appropriate time intervals
         let (majorInterval, minorInterval) = calculateTimeIntervals(for: totalSeconds, pixelsPerSecond: pixelsPerSecond)
@@ -133,13 +121,14 @@ extension TimeRulerView {
         let timePerView = Double(viewWidth) / Double(pixelsPerSecond)
         
         // Determine appropriate intervals based on zoom level
-        // Since we want to show labels every 2 seconds, adjust intervals accordingly
+        // Since we want to show labels every thumbnailDurationInSeconds, adjust intervals accordingly
+        let labelInterval = Double(TimelineItemView.thumbnailDurationInSeconds)
         if timePerView < 10 {
-            return (major: 2.0, minor: 0.5) // 2s major (for labels), 500ms minor
+            return (major: labelInterval, minor: 0.5) // thumbnailDurationInSeconds major (for labels), 500ms minor
         } else if timePerView < 60 {
-            return (major: 2.0, minor: 1.0) // 2s major (for labels), 1s minor
+            return (major: labelInterval, minor: 1.0) // thumbnailDurationInSeconds major (for labels), 1s minor
         } else if timePerView < 300 {
-            return (major: 10.0, minor: 2.0) // 10s major, 2s minor (labels every 2s)
+            return (major: 10.0, minor: labelInterval) // 10s major, thumbnailDurationInSeconds minor (labels every thumbnailDurationInSeconds)
         } else {
             return (major: 30.0, minor: 10.0) // 30s major, 10s minor
         }
@@ -150,8 +139,6 @@ extension TimeRulerView {
         context.setStrokeColor(theme.primaryTextColor.cgColor)
         context.setLineWidth(1.0)
         
-        print("🎯 Drawing major ticks with interval: \(interval)s")
-        
         var currentTime: Double = 0
         while currentTime <= totalSeconds {
             let x = CGFloat(currentTime) * pixelsPerSecond
@@ -161,10 +148,10 @@ extension TimeRulerView {
             context.addLine(to: CGPoint(x: x, y: rect.height))
             context.strokePath()
             
-            // Show time labels every 2 seconds (0s, 2s, 4s, 6s, 8s, 10s, 12s, etc.)
+            // Show time labels based on thumbnailDurationInSeconds (configurable interval)
             let currentTimeInt = Int(currentTime)
-            if currentTimeInt % 2 == 0 {
-                print("   • Drawing label at \(currentTime)s (x=\(x))")
+            let labelIntervalInt = Int(TimelineItemView.thumbnailDurationInSeconds)
+            if currentTimeInt % labelIntervalInt == 0 {
                 drawTimeLabel(at: CGPoint(x: x, y: 5), time: currentTime, context: context)
             }
             
@@ -181,11 +168,10 @@ extension TimeRulerView {
                 // Only draw if we haven't already drawn a label at this position
                 let alreadyDrawn = Int(labelTime / interval) * Int(interval) == Int(labelTime)
                 if !alreadyDrawn {
-                    print("   • Drawing extra label at \(labelTime)s (x=\(x))")
                     drawTimeLabel(at: CGPoint(x: x, y: 5), time: labelTime, context: context)
                 }
             }
-            labelTime += 2.0 // Always increment by 2 seconds for labels
+            labelTime += Double(TimelineItemView.thumbnailDurationInSeconds) // Always increment by thumbnailDurationInSeconds for labels
         }
     }
     

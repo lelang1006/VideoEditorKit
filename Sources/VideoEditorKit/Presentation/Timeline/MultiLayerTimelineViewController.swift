@@ -370,7 +370,7 @@ extension MultiLayerTimelineViewController {
     func makeScrollView() -> UIScrollView {
         let scrollView = UIScrollView()
         scrollView.showsVerticalScrollIndicator = false
-        scrollView.showsHorizontalScrollIndicator = true
+        scrollView.showsHorizontalScrollIndicator = false
         scrollView.delegate = self
         return scrollView
     }

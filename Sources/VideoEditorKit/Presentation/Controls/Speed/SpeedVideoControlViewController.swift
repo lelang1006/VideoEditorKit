@@ -70,12 +70,13 @@ final class SpeedVideoControlViewController: BaseVideoControlViewController {
     override func onApplyAction() {
         debugPrint("onApplyAction - saving speed: \(speed) as initialSpeed")
         // Keep current value as initial for next time
-        initialSpeed = speed
         super.onApplyAction()
     }
             
     override func resetToInitialValues() {
-        speed = initialSpeed
+        if speed != initialSpeed {
+            speed = initialSpeed
+        }
     }
     
     // MARK: Bindings

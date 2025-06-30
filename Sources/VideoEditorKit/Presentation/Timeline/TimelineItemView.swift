@@ -16,6 +16,10 @@ protocol TimelineItemViewDelegate: AnyObject {
 
 class TimelineItemView: UIView {
     
+    // MARK: - Constants
+    
+    internal static let thumbnailDurationInSeconds: CGFloat = 2.0
+    
     // MARK: - Properties
     
     weak var delegate: TimelineItemViewDelegate?
@@ -214,25 +218,21 @@ extension TimelineItemView {
     }
     
     func addVideoThumbnails(_ thumbnails: [CGImage]) {
-        print("🖼️ TimelineItemView: Adding \(thumbnails.count) video thumbnails")
-        
         // Clear existing thumbnails
         contentView.subviews.forEach { $0.removeFromSuperview() }
         
         guard !thumbnails.isEmpty else { 
-            print("⚠️ TimelineItemView: No thumbnails to add")
             return 
         }
         
-        // Get asset aspect ratio from store or use default 16:9
-        let assetAspectRatio: CGFloat = 16.0/9.0
-        
-        // Use frame-based layout to avoid AutoLayout conflicts
+        // Create image views for thumbnails
+        // Each thumbnail represents a fixed duration of video (see thumbnailDurationInSeconds)
         for (index, thumbnail) in thumbnails.enumerated() {
             let imageView = UIImageView()
             imageView.image = UIImage(cgImage: thumbnail, scale: 1.0, orientation: .up)
             imageView.contentMode = .scaleAspectFill
             imageView.clipsToBounds = true
+            imageView.backgroundColor = .clear
             
             // Disable AutoLayout for thumbnail views
             imageView.translatesAutoresizingMaskIntoConstraints = true
@@ -240,23 +240,22 @@ extension TimelineItemView {
             contentView.addSubview(imageView)
         }
         
-        print("✅ TimelineItemView: Added \(thumbnails.count) thumbnail views")
-        
-        // Layout thumbnails using frames
-        layoutThumbnails(assetAspectRatio: assetAspectRatio)
+        // Layout thumbnails - each represents the configured duration
+        layoutThumbnails()
     }
     
-    private func layoutThumbnails(assetAspectRatio: CGFloat) {
+    private func layoutThumbnails() {
         let contentBounds = contentView.bounds
         guard contentBounds.height > 4 else { return }
         
+        // Each thumbnail represents a fixed duration of video
+        let thumbnailWidth = Self.thumbnailDurationInSeconds * configuration.pixelsPerSecond
         let thumbnailHeight = contentBounds.height - 4
-        let thumbnailWidth = max(thumbnailHeight * assetAspectRatio, 32)
         let inset: CGFloat = 2
         
         var currentX: CGFloat = inset
         
-        for subview in contentView.subviews {
+        for (index, subview) in contentView.subviews.enumerated() {
             if let imageView = subview as? UIImageView {
                 let frame = CGRect(
                     x: currentX,
@@ -265,12 +264,10 @@ extension TimelineItemView {
                     height: thumbnailHeight
                 )
                 imageView.frame = frame
-                currentX += thumbnailWidth
+                imageView.contentMode = .scaleAspectFill
+                imageView.clipsToBounds = true
                 
-                // Stop if we exceed content width
-                if currentX > contentBounds.width - inset {
-                    break
-                }
+                currentX += thumbnailWidth
             }
         }
     }
@@ -341,9 +338,9 @@ extension TimelineItemView {
         // Layout content based on item type
         switch item.trackType {
         case .video:
-            // Layout video thumbnails using frames
+            // Layout video thumbnails using fixed 2-second width approach
             if contentView.subviews.contains(where: { $0 is UIImageView }) {
-                layoutThumbnails(assetAspectRatio: 16.0/9.0)
+                layoutThumbnails()
             }
         case .audio:
             // Layout waveform view
