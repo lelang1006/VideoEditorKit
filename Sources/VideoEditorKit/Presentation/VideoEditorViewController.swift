@@ -111,13 +111,13 @@ fileprivate extension VideoEditorViewController {
                 guard let self = self else { return }
                 self.videoPlayerController.load(item: item, autoPlay: false)
                 
-                // Only regenerate timeline if this is a different asset to avoid resetting trim during operations
+                // Only initialize timeline if this is a different asset to avoid resetting trim during operations
                 if self.currentTimelineAsset !== item.asset {
-                    print("📹 Generating timeline for new asset")
-                    self.videoTimelineViewController.generateTimeline(for: item.asset)
+                    print("📹 Initializing timeline for new asset")
+                    self.videoTimelineViewController.initializeTimeline()
                     self.currentTimelineAsset = item.asset
                 } else {
-                    print("📹 Skipping timeline regeneration - same asset")
+                    print("📹 Skipping timeline initialization - same asset")
                 }
                 
                 self.subscribeToDurationUpdate(for: item)

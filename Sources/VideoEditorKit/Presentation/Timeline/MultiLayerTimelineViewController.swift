@@ -116,19 +116,42 @@ final class MultiLayerTimelineViewController: UIViewController {
         }
     }
     
-    // MARK: - Timeline Generation (same pattern as VideoTimelineViewController)
+    // MARK: - Reactive Timeline Generation
     
-    func generateTimeline(for asset: AVAsset) {
+    /// Generates timeline thumbnails for the given asset
+    private func generateThumbnails(for asset: AVAsset) {
         let rect = CGRect(x: 0, y: 0, width: view.bounds.width, height: 64.0)
         store.videoTimeline(for: asset, in: rect)
             .replaceError(with: [])
             .receive(on: DispatchQueue.main)
             .sink { [weak self] images in
                 guard let self = self else { return }
-                self.setupTimelineWithAsset(asset, thumbnails: images)
+                self.updateThumbnails(images)
             }.store(in: &cancellables)
-        
-        updateContentSize()
+    }
+    
+    /// Updates thumbnails for existing video items without recreating tracks
+    private func updateThumbnails(_ images: [CGImage]) {
+        // Update thumbnails in existing video items without disrupting track structure
+        for trackIndex in 0..<tracks.count {
+            for itemIndex in 0..<tracks[trackIndex].items.count {
+                if let videoItem = tracks[trackIndex].items[itemIndex] as? VideoTimelineItem {
+                    // Create new item with updated thumbnails
+                    let updatedVideoItem = VideoTimelineItem(
+                        asset: videoItem.asset,
+                        thumbnails: images,
+                        startTime: videoItem.startTime,
+                        duration: videoItem.duration
+                    )
+                    tracks[trackIndex].items[itemIndex] = updatedVideoItem
+                    
+                    // Update the track view
+                    if let trackView = trackViews[safe: trackIndex] {
+                        trackView.updateItem(updatedVideoItem)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -153,6 +176,12 @@ extension MultiLayerTimelineViewController {
                 trackView.selectItem(item)
             }
         }
+    }
+    
+    /// Initialize the timeline with the current store state
+    func initializeTimeline() {
+        updateTracksFromStore()
+        generateThumbnails(for: store.originalAsset)
     }
     
     func removeItem(_ item: TimelineItem) {
@@ -348,6 +377,19 @@ extension MultiLayerTimelineViewController {
         let y: CGFloat = 0
         carretLayer.frame = CGRect(x: x, y: y, width: width, height: height)
     }
+    
+    func updateScrollViewContentOffset(fractionCompleted: Double) {
+        let maxDuration = tracks.flatMap { $0.items }.map { $0.startTime + $0.duration }.max() ?? CMTime.zero
+        if maxDuration.seconds > 0 {
+            let targetTime = maxDuration.seconds * fractionCompleted
+            let targetPixels = CGFloat(targetTime) * configuration.pixelsPerSecond
+            let centerOffset = targetPixels - scrollView.contentInset.left
+            let point = CGPoint(x: centerOffset, y: 0)
+            
+            scrollView.setContentOffset(point, animated: false)
+            timeRulerView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: 0))
+        }
+    }
 }
 
 // MARK: - UI Setup
@@ -389,7 +431,47 @@ extension MultiLayerTimelineViewController {
     }
     
     func setupBindings() {
-        // Store bindings (same pattern as VideoTimelineViewController)
+        // MARK: - Store Property Bindings (Reactive Flow)
+        
+        // React to asset changes - this replaces setupTimelineWithAsset calls
+        store.$originalAsset
+            .sink { [weak self] asset in
+                guard let self = self else { return }
+                self.updateTracksFromStore()
+                self.generateThumbnails(for: asset)
+            }
+            .store(in: &cancellables)
+        
+        // React to timeline structure changes (trim, speed, video edit)
+        Publishers.CombineLatest(
+            store.$trimPositions.removeDuplicates { $0.0 == $1.0 && $0.1 == $1.1 },
+            store.$speed.removeDuplicates()
+        )
+        .debounce(for: .milliseconds(50), scheduler: DispatchQueue.main) // Prevent rapid-fire updates
+        .sink { [weak self] _, _ in
+            guard let self = self else { return }
+            self.updateTracksFromStore()
+        }
+        .store(in: &cancellables)
+        
+        // React to audio replacement changes
+        store.$audioReplacement
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                self.updateTracksFromStore()
+            }
+            .store(in: &cancellables)
+        
+        // React to volume and mute changes (update existing audio items)
+        Publishers.CombineLatest(store.$volume, store.$isMuted)
+            .sink { [weak self] volume, isMuted in
+                guard let self = self else { return }
+                self.updateAudioProperties(volume: volume, isMuted: isMuted)
+            }
+            .store(in: &cancellables)
+        
+        // MARK: - Playhead Position Bindings
+        
         store.$playheadProgress
             .sink { [weak self] playheadProgress in
                 guard let self = self else { return }
@@ -574,7 +656,9 @@ extension MultiLayerTimelineViewController: TimelineTrackViewDelegate {
                 
                 // Re-select item after store update
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    self.selectItemById(selectedItemId)
+                    if let item = self.findItemById(selectedItemId) {
+                        self.selectItem(item)
+                    }
                 }
             }
         }
@@ -586,28 +670,14 @@ extension MultiLayerTimelineViewController: TimelineTrackViewDelegate {
             print("📱 🔄 Trim operation completed")
             
             // Final selection check
-            self.selectItemById(selectedItemId)
+            if let item = self.findItemById(selectedItemId) {
+                self.selectItem(item)
+            }
         }
     }
     
     @objc func themeDidChange() {
         updateTheme()
-    }
-    
-    private func selectItemById(_ itemId: String) {
-        print("📱 🔄 Searching for item with ID: \(itemId)")
-        
-        // Find the item by ID across all tracks
-        for track in tracks {
-            if let item = track.items.first(where: { $0.id == itemId }) {
-                print("📱 🔄 Found item by ID, re-selecting")
-                selectedItem = item
-                selectItem(item)
-                return
-            }
-        }
-        
-        print("📱 ⚠️ Could not find item with ID \(itemId) for re-selection")
     }
 }
 
@@ -638,160 +708,174 @@ extension MultiLayerTimelineViewController: TimelineThemeAware {
     }
 }
 
-// MARK: - Timeline Setup
+// MARK: - Reactive Track Management
 
 extension MultiLayerTimelineViewController {
     
-    func setupTimelineWithAsset(_ asset: AVAsset, thumbnails: [CGImage] = []) {
-        let duration = asset.duration
+    /// Single method to update tracks from store state - replaces setupTimelineWithAsset
+    private func updateTracksFromStore() {
+        let asset = store.originalAsset
+        let trimPositions = store.trimPositions
+        let speed = store.speed
+        let audioReplacement = store.audioReplacement
+        let volume = store.volume
+        let isMuted = store.isMuted
         
-        // First priority: Check if current selected item matches the type we need
-        var existingVideoItem: VideoTimelineItem?
-        var existingAudioItem: AudioTimelineItem?
+        // Preserve current selection
+        let currentSelectedItemId = selectedItem?.id
         
-        // If we have a selected video item, use it (regardless of asset reference)
-        if let selectedVideoItem = selectedItem as? VideoTimelineItem {
-            existingVideoItem = selectedVideoItem
-            print("📹 Using selected video item for preservation: ID=\(selectedVideoItem.id)")
-        }
+        // Calculate durations based on trim and speed
+        let originalDuration = asset.duration
+        let trimmedDuration = CMTime(
+            seconds: originalDuration.seconds * (trimPositions.1 - trimPositions.0),
+            preferredTimescale: originalDuration.timescale
+        )
+        let finalDuration = CMTime(
+            seconds: trimmedDuration.seconds / speed,
+            preferredTimescale: trimmedDuration.timescale
+        )
         
-        // If we have a selected audio item, use it (regardless of asset reference)  
-        if let selectedAudioItem = selectedItem as? AudioTimelineItem {
-            existingAudioItem = selectedAudioItem
-            print("📹 Using selected audio item for preservation")
-        }
+        // Create new tracks array
+        var newTracks: [TimelineTrack] = []
         
-        // Second priority: Check existing tracks for asset match (fallback)
-        if existingVideoItem == nil || existingAudioItem == nil {
-            for track in tracks {
-                for item in track.items {
-                    if existingVideoItem == nil, let videoItem = item as? VideoTimelineItem, videoItem.asset === asset {
-                        existingVideoItem = videoItem
-                        print("📹 Found existing video item by asset reference: ID=\(videoItem.id)")
-                    }
-                    if existingAudioItem == nil, let audioItem = item as? AudioTimelineItem, audioItem.asset === asset {
-                        existingAudioItem = audioItem
-                        print("📹 Found existing audio item by asset reference")
-                    }
-                }
-            }
-        }
-        
-        // Create a main video track, preserving existing item if available
+        // 1. Create main video track
         var videoTrack = TimelineTrack(type: .video)
-        let videoItem: VideoTimelineItem
-        
-        if let existing = existingVideoItem {
-            // Update thumbnails but preserve trim data AND ID
-            // Reset startTime to 0 since this is a regenerated timeline (video should start from beginning)
-            videoItem = VideoTimelineItem(
-                id: existing.id,           // Preserve ID for selection tracking
-                asset: asset,
-                thumbnails: thumbnails,
-                startTime: .zero,          // Reset to start from timeline beginning
-                duration: existing.duration     // Preserve trimmed duration
-            )
-            print("📹 Preserving existing video item: ID=\(existing.id), startTime=0.0s (reset), duration=\(existing.duration.seconds)s")
-        } else {
-            // Create new item with full duration
-            videoItem = VideoTimelineItem(
-                asset: asset,
-                thumbnails: thumbnails,
-                startTime: .zero,
-                duration: duration
-            )
-            print("📹 Creating new video item with full duration, ID=\(videoItem.id)")
-        }
-        
+        let videoItem = VideoTimelineItem(
+            asset: asset,
+            thumbnails: [], // Thumbnails are updated separately via generateThumbnails
+            startTime: .zero,
+            duration: finalDuration
+        )
         videoTrack.items = [videoItem]
+        newTracks.append(videoTrack)
         
-        // Create an audio track if audio exists, preserving existing item if available
-        var newTracks = [videoTrack]
-        if asset.tracks(withMediaType: .audio).count > 0 {
+        // 2. Create audio track(s)
+        if let audioReplacement = audioReplacement {
+            // Audio replacement track
+            var audioTrack = TimelineTrack(type: .audio(.replacement))
+            let audioItem = AudioTimelineItem(
+                trackType: .audio(.replacement),
+                asset: audioReplacement.asset,
+                waveform: [], // Could be enhanced later
+                title: audioReplacement.title ?? "Replacement Audio",
+                volume: volume,
+                isMuted: isMuted,
+                startTime: .zero,
+                duration: finalDuration
+            )
+            audioTrack.items = [audioItem]
+            newTracks.append(audioTrack)
+        } else if asset.tracks(withMediaType: .audio).count > 0 {
+            // Original audio track
             var audioTrack = TimelineTrack(type: .audio(.original))
-            let audioItem: AudioTimelineItem
-            
-            if let existing = existingAudioItem {
-                // Preserve existing audio item trim data but reset startTime
-                audioItem = AudioTimelineItem(
-                    trackType: .audio(.original),
-                    asset: asset,
-                    waveform: existing.waveform,
-                    title: existing.title,
-                    volume: existing.volume,
-                    isMuted: existing.isMuted,
-                    startTime: .zero,           // Reset to start from timeline beginning
-                    duration: existing.duration     // Preserve trimmed duration
-                )
-                print("📹 Preserving existing audio item: startTime=0.0s (reset), duration=\(existing.duration.seconds)s")
-            } else {
-                // Create new item with full duration
-                audioItem = AudioTimelineItem(
-                    trackType: .audio(.original),
-                    asset: asset,
-                    waveform: [], // Empty waveform for now, could be enhanced later
-                    title: "Main Audio",
-                    volume: 1.0,
-                    isMuted: false,
-                    startTime: .zero,
-                    duration: duration
-                )
-                print("📹 Creating new audio item with full duration")
-            }
-            
+            let audioItem = AudioTimelineItem(
+                trackType: .audio(.original),
+                asset: asset,
+                waveform: [], // Could be enhanced later
+                title: "Main Audio",
+                volume: volume,
+                isMuted: isMuted,
+                startTime: .zero,
+                duration: finalDuration
+            )
             audioTrack.items = [audioItem]
             newTracks.append(audioTrack)
         }
         
-        // Update the timeline with tracks
+        // Update tracks (this triggers updateTracksView via didSet)
         self.tracks = newTracks
         
-        // Re-apply selection if we preserved an existing item
-        if let existing = existingVideoItem, selectedItem?.id == existing.id {
-            print("📹 Re-selecting preserved video item with ID: \(existing.id)")
-            // Find the newly created item with the same ID and re-select it
+        // Restore selection if item with same type still exists
+        if let selectedId = currentSelectedItemId {
             DispatchQueue.main.async {
-                self.selectItemById(existing.id)
-            }
-        } else if let existing = existingAudioItem, selectedItem?.id == existing.id {
-            print("📹 Re-selecting preserved audio item with ID: \(existing.id)")
-            // Find the newly created item with the same ID and re-select it  
-            DispatchQueue.main.async {
-                self.selectItemById(existing.id)
+                self.restoreSelection(itemId: selectedId)
             }
         }
         
-        // Reset scroll position to beginning (like VideoTimelineViewController)
+        // Reset scroll position to beginning
         DispatchQueue.main.async {
             self.updateScrollViewContentOffset(fractionCompleted: 0.0)
         }
     }
     
-    private func updateScrollViewContentOffset(fractionCompleted: Double) {
-        // For initial positioning (fractionCompleted = 0), center the timeline like VideoTimelineViewController
-        if fractionCompleted == 0.0 {
-            // Center position: scroll so that time 0 appears at center of screen
-            // This should align items at startTime=0 with the center playhead
-            let centerX = -scrollView.contentInset.left
-            let point = CGPoint(x: centerX, y: 0)
-            
-            scrollView.setContentOffset(point, animated: false)
-        } else {
-            // Normal calculation for playback position
-            let maxDuration = tracks.flatMap { $0.items }.map { $0.startTime + $0.duration }.max() ?? CMTime.zero
-            
-            if maxDuration.seconds > 0 {
-                // Calculate the timeline position based on current playback time
-                let currentTimePixels = CGFloat(store.playheadProgress.seconds) * configuration.pixelsPerSecond
-                // Offset to center the current time under the playhead
-                let centerOffset = currentTimePixels - scrollView.contentInset.left
-                let point = CGPoint(x: centerOffset, y: 0)
-                
-                scrollView.setContentOffset(point, animated: false)
+    /// Updates audio properties for existing audio items without recreating tracks
+    private func updateAudioProperties(volume: Float, isMuted: Bool) {
+        var needsUpdate = false
+        
+        for trackIndex in 0..<tracks.count {
+            for itemIndex in 0..<tracks[trackIndex].items.count {
+                if let audioItem = tracks[trackIndex].items[itemIndex] as? AudioTimelineItem {
+                    if audioItem.volume != volume || audioItem.isMuted != isMuted {
+                        // Create new audio item with updated properties
+                        let updatedAudioItem = AudioTimelineItem(
+                            trackType: audioItem.trackType,
+                            asset: audioItem.asset,
+                            waveform: audioItem.waveform,
+                            title: audioItem.title,
+                            volume: volume,
+                            isMuted: isMuted,
+                            startTime: audioItem.startTime,
+                            duration: audioItem.duration
+                        )
+                        tracks[trackIndex].items[itemIndex] = updatedAudioItem
+                        needsUpdate = true
+                        
+                        // Update the track view
+                        if let trackView = trackViews[safe: trackIndex] {
+                            trackView.updateItem(updatedAudioItem)
+                        }
+                    }
+                }
             }
         }
         
-        // Sync time ruler (both have same contentInset)
-        timeRulerView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: 0))
+        if needsUpdate {
+            updateContentSize()
+        }
+    }
+    
+    /// Restores selection by finding item of the same type as the previously selected item
+    private func restoreSelection(itemId: String) {
+        // First try to find exact ID match (for preserved items)
+        for track in tracks {
+            if let item = track.items.first(where: { $0.id == itemId }) {
+                print("📱 🔄 Restored selection by exact ID match: \(itemId)")
+                selectedItem = item
+                selectItem(item)
+                return
+            }
+        }
+        
+        // If no exact match, try to select item of the same type at the same position
+        // This handles cases where items are recreated but should maintain logical selection
+        if let previousItem = selectedItem {
+            for track in tracks {
+                for item in track.items {
+                    if type(of: item) == type(of: previousItem) {
+                        print("📱 🔄 Restored selection by type match: \(type(of: item))")
+                        selectedItem = item
+                        selectItem(item)
+                        return
+                    }
+                }
+            }
+        }
+        
+        print("📱 ⚠️ Could not restore selection for item ID: \(itemId)")
+    }
+}
+
+// MARK: - Selection Helper Methods
+
+extension MultiLayerTimelineViewController {
+    
+    /// Find an item by ID across all tracks
+    private func findItemById(_ itemId: String) -> TimelineItem? {
+        for track in tracks {
+            if let item = track.items.first(where: { $0.id == itemId }) {
+                return item
+            }
+        }
+        return nil
     }
 }
