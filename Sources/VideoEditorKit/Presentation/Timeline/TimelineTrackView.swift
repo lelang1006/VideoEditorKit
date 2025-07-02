@@ -9,16 +9,11 @@ import UIKit
 import AVFoundation
 import PureLayout
 
-protocol TimelineTrackViewDelegate: AnyObject {
-    func trackView(_ trackView: TimelineTrackView, didSelectItem item: TimelineItem)
-    func trackView(_ trackView: TimelineTrackView, didTrimItem item: TimelineItem, newStartTime: CMTime, newDuration: CMTime)
-}
+
 
 final class TimelineTrackView: UIView {
     
     // MARK: - Properties
-    
-    weak var delegate: TimelineTrackViewDelegate?
     
     let track: TimelineTrack
     let configuration: TimelineConfiguration
@@ -54,7 +49,6 @@ extension TimelineTrackView {
         // Add new item views
         for item in track.items {
             let itemView = TimelineItemView(item: item, configuration: configuration)
-            itemView.delegate = self
             
             itemViews.append(itemView)
             contentView.addSubview(itemView)
@@ -164,19 +158,6 @@ private extension TimelineTrackView {
         let view = UIView()
         view.backgroundColor = .clear
         return view
-    }
-}
-
-// MARK: - TimelineItemViewDelegate
-
-extension TimelineTrackView: TimelineItemViewDelegate {
-    
-    func itemView(_ itemView: TimelineItemView, didSelectItem item: TimelineItem) {
-        delegate?.trackView(self, didSelectItem: item)
-    }
-    
-    func itemView(_ itemView: TimelineItemView, didTrimItem item: TimelineItem, newStartTime: CMTime, newDuration: CMTime) {
-        delegate?.trackView(self, didTrimItem: item, newStartTime: newStartTime, newDuration: newDuration)
     }
 }
 

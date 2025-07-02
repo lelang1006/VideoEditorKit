@@ -26,13 +26,16 @@ final class MultiLayerTimelineViewController: UIViewController {
     @Published var seekerValue: Double = 0.0
     
     // Flag to prevent auto-scrolling during trim operations
-    private var isTrimInProgress: Bool = false
+    var isTrimInProgress: Bool = false
     
     // Flag to prevent unintended deselection during layout operations
-    private var isLayoutInProgress: Bool = false
+    var isLayoutInProgress: Bool = false
     
     // Flag to prevent deselection immediately after trim operations
-    private var isPostTrimProtectionActive: Bool = false
+    var isPostTrimProtectionActive: Bool = false
+    
+    // Gesture state management
+    var currentGestureState: GestureState = .none
     
     // MARK: - Properties
     
@@ -53,6 +56,14 @@ final class MultiLayerTimelineViewController: UIViewController {
     var cancellables = Set<AnyCancellable>()
     let configuration = TimelineConfiguration.default
     
+    /// Current translation being tracked for visual feedback
+    var currentTrimTranslation: CGPoint = .zero
+    
+    /// Helper to get current translation for visual feedback
+    func handleTrimGesture_getCurrentTranslation() -> CGPoint {
+        return currentTrimTranslation
+    }
+
     // MARK: - Store Integration (same as VideoTimelineViewController)
     
     let store: VideoEditorStore
@@ -78,6 +89,7 @@ final class MultiLayerTimelineViewController: UIViewController {
         super.viewDidLoad()
         setupUI()
         setupBindings()
+        setupCentralizedGestures() // Setup gesture management
         
         // Initialize haptic feedback system - using standard iOS haptics
         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
@@ -272,7 +284,6 @@ extension MultiLayerTimelineViewController {
         // Add new track views
         for (index, track) in tracks.enumerated() {
             let trackView = TimelineTrackView(track: track, configuration: configuration)
-            trackView.delegate = self
             trackView.tag = index
             
             trackViews.append(trackView)
@@ -576,119 +587,6 @@ extension MultiLayerTimelineViewController: UIScrollViewDelegate {
     }
 }
 
-// MARK: - TimelineTrackViewDelegate
-
-extension MultiLayerTimelineViewController: TimelineTrackViewDelegate {
-    
-    func trackView(_ trackView: TimelineTrackView, didSelectItem item: TimelineItem) {
-        selectItem(item)
-        delegate?.timeline(self, didSelectItem: item)
-    }
-    
-    func trackView(_ trackView: TimelineTrackView, didTrimItem item: TimelineItem, newStartTime: CMTime, newDuration: CMTime) {
-        print("📱 🎬 MultiLayerTimelineViewController.trackView(_:didTrimItem:...) called")
-        
-        // Set trim flag to prevent auto-scrolling during store update
-        isTrimInProgress = true
-        
-        // Validate the new placement
-        var updatedItem = item
-        updatedItem.startTime = newStartTime
-        updatedItem.duration = newDuration
-        
-        let validationResult = TimelineInteractionSystem.validateItemPlacement(updatedItem)
-        
-        if !validationResult.isValid {
-            // Show validation error without animation
-            // Could show alert or other feedback instead of shake
-            isTrimInProgress = false // Reset flag on error
-            return
-        }
-        
-        // Find the track this item belongs to
-        guard let trackIndex = tracks.firstIndex(where: { track in
-            track.items.contains { $0.id == item.id }
-        }) else { 
-            isTrimInProgress = false // Reset flag on error
-            return 
-        }
-        
-        // Check for collisions
-        let collisions = TimelineInteractionSystem.detectCollisions(
-            for: updatedItem,
-            in: tracks[trackIndex],
-            excluding: item
-        )
-        
-        if !collisions.isEmpty {
-            // Find a valid position
-            let validStartTime = TimelineInteractionSystem.findValidPosition(
-                for: updatedItem,
-                in: tracks[trackIndex],
-                preferredStartTime: newStartTime
-            )
-            updatedItem.startTime = validStartTime
-        }
-        
-        updateItem(updatedItem)
-        delegate?.timeline(self, didTrimItem: updatedItem, newStartTime: updatedItem.startTime, newDuration: updatedItem.duration)
-        
-        // Ensure the trimmed item remains selected
-        print("📱 🔄 Trim completed, ensuring item remains selected")
-        selectedItem = updatedItem
-        selectItem(updatedItem)
-        
-        // Store the selected item ID for re-selection after potential data reloads
-        let selectedItemId = updatedItem.id
-        
-        // Activate post-trim protection to prevent immediate deselection
-        isPostTrimProtectionActive = true
-        
-        // Update store to sync with rest of app (delayed to avoid interference with selection)
-        if let videoItem = updatedItem as? VideoTimelineItem {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                let totalDuration = videoItem.asset.duration.seconds
-                let trimStartRatio = updatedItem.startTime.seconds / totalDuration
-                let trimEndRatio = (updatedItem.startTime.seconds + updatedItem.duration.seconds) / totalDuration
-                
-                print("📹 Store update - Video trim: start=\(trimStartRatio), end=\(trimEndRatio)")
-                self.store.trimPositions = (trimStartRatio, trimEndRatio)
-                
-                // Re-select item after store update
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    if let item = self.findItemById(selectedItemId) {
-                        self.selectItem(item)
-                    }
-                }
-            }
-        }
-        
-        // Reset protection after operation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            self.isTrimInProgress = false
-            self.isPostTrimProtectionActive = false
-            print("📱 🔄 Trim operation completed")
-            
-            // Final selection check
-            if let item = self.findItemById(selectedItemId) {
-                self.selectItem(item)
-            }
-        }
-    }
-    
-    @objc func themeDidChange() {
-        updateTheme()
-    }
-}
-
-// MARK: - Array Extension
-
-extension Array {
-    subscript(safe index: Index) -> Element? {
-        return indices.contains(index) ? self[index] : nil
-    }
-}
-
 // MARK: - TimelineThemeAware
 
 extension MultiLayerTimelineViewController: TimelineThemeAware {
@@ -705,6 +603,18 @@ extension MultiLayerTimelineViewController: TimelineThemeAware {
         
         // Update all track views
         trackViews.forEach { $0.updateTheme() }
+    }
+    
+    @objc func themeDidChange() {
+        updateTheme()
+    }
+}
+
+// MARK: - Array Extension
+
+extension Array {
+    subscript(safe index: Index) -> Element? {
+        return indices.contains(index) ? self[index] : nil
     }
 }
 
