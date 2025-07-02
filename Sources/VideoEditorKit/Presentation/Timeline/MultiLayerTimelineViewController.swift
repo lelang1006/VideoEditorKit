@@ -153,7 +153,8 @@ final class MultiLayerTimelineViewController: UIViewController {
                         asset: videoItem.asset,
                         thumbnails: images,
                         startTime: videoItem.startTime,
-                        duration: videoItem.duration
+                        duration: videoItem.duration,
+                        trimPositions: videoItem.trimPositions // Preserve trim positions
                     )
                     tracks[trackIndex].items[itemIndex] = updatedVideoItem
                     
@@ -662,7 +663,8 @@ extension MultiLayerTimelineViewController {
             asset: asset,
             thumbnails: [], // Thumbnails are updated separately via generateThumbnails
             startTime: .zero,
-            duration: finalDuration
+            duration: finalDuration,
+            trimPositions: store.trimPositions // Truyền trim positions từ store
         )
         videoTrack.items = [videoItem]
         newTracks.append(videoTrack)

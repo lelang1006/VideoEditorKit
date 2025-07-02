@@ -522,15 +522,23 @@ extension TimelineItemView {
         var maxRightMovement: CGFloat = bounds.width - handleWidth  // Default: to right edge
         
         if let videoItem = item as? VideoTimelineItem {
-            // For video items, calculate based on what's actually available to trim
+            // For video items, calculate based on actual trim positions
             let currentDuration = item.duration.seconds
             let assetDuration = videoItem.asset.duration.seconds
+            let currentTrimPositions = videoItem.trimPositions
             
-            // Calculate reasonable limits for left movement
-            // Maximum left trim should be limited to what we can actually trim
-            // Assume that current video represents the remaining trimmable portion
-            let remainingTrimmableFromLeft = assetDuration - currentDuration
-            let maxReasonableLeftTrim = min(remainingTrimmableFromLeft + 1.0, 3.0) // Max 3 seconds or available space + 1s buffer
+            // Tính toán space còn lại dựa trên trim positions thực tế
+            let currentTrimStartTime = currentTrimPositions.start * assetDuration
+            let currentTrimEndTime = currentTrimPositions.end * assetDuration
+            
+            // Space có thể trim thêm từ bên trái (từ đầu asset đến current start)
+            let availableLeftTrimSpace = currentTrimStartTime
+            
+            // Space có thể extend về bên phải (giữ nguyên current end, chỉ di chuyển start về trái)
+            let maxPossibleStartExtension = availableLeftTrimSpace
+            
+            // Giới hạn hợp lý cho left handle movement
+            let maxReasonableLeftTrim = min(maxPossibleStartExtension, 3.0) // Max 3 seconds
             maxLeftMovement = -CGFloat(maxReasonableLeftTrim * Double(pixelsPerSecond))
             
             // Allow right movement but keep minimum 0.1s duration
@@ -538,10 +546,13 @@ extension TimelineItemView {
             let maxTrimFromLeft = currentDuration - minDuration
             maxRightMovement = CGFloat(maxTrimFromLeft * Double(pixelsPerSecond))
             
-            print("📱 📏 LEFT HANDLE LIMITS (REASONABLE):")
-            print("  - Current duration: \(currentDuration)s, asset duration: \(assetDuration)s")
-            print("  - Remaining trimmable: \(remainingTrimmableFromLeft)s")
-            print("  - Max left movement: \(maxLeftMovement)px (reasonable: \(maxReasonableLeftTrim)s)")
+            print("📱 📏 LEFT HANDLE LIMITS (ACCURATE):")
+            print("  - Asset duration: \(assetDuration)s")
+            print("  - Current trim: start=\(currentTrimPositions.start), end=\(currentTrimPositions.end)")
+            print("  - Current trim times: \(currentTrimStartTime)s to \(currentTrimEndTime)s")
+            print("  - Available left space: \(availableLeftTrimSpace)s")
+            print("  - Max reasonable left trim: \(maxReasonableLeftTrim)s")
+            print("  - Max left movement: \(maxLeftMovement)px")
             print("  - Max right movement: \(maxRightMovement)px")
         }
         
@@ -613,26 +624,35 @@ extension TimelineItemView {
         var maxRightMovement: CGFloat = 200  // Default: allow 200px right movement
         
         if let videoItem = item as? VideoTimelineItem {
-            // For video items, calculate based on what's actually available to extend
+            // For video items, calculate based on actual trim positions
             let currentDuration = item.duration.seconds
             let assetDuration = videoItem.asset.duration.seconds
+            let currentTrimPositions = videoItem.trimPositions
             
-            // Allow left movement but keep minimum 0.1s duration
+            // Tính toán space còn lại dựa trên trim positions thực tế
+            let currentTrimStartTime = currentTrimPositions.start * assetDuration
+            let currentTrimEndTime = currentTrimPositions.end * assetDuration
+            
+            // Space có thể extend thêm từ bên phải (từ current end đến cuối asset)
+            let availableRightExtendSpace = assetDuration - currentTrimEndTime
+            
+            // Space có thể trim từ bên phải (di chuyển end về trái, giữ nguyên start)
             let minDuration = 0.1
             let maxTrimFromRight = currentDuration - minDuration
             maxLeftMovement = -CGFloat(maxTrimFromRight * Double(pixelsPerSecond))
             
-            // Calculate reasonable limits for right movement
-            // Maximum right extension should be limited to what's actually available
-            let remainingExtendableToRight = assetDuration - currentDuration
-            let maxReasonableRightExtension = min(remainingExtendableToRight + 1.0, 3.0) // Max 3 seconds or available space + 1s buffer
+            // Giới hạn hợp lý cho right handle movement
+            let maxReasonableRightExtension = min(availableRightExtendSpace, 3.0) // Max 3 seconds
             maxRightMovement = CGFloat(maxReasonableRightExtension * Double(pixelsPerSecond))
             
-            print("📱 📏 RIGHT HANDLE LIMITS (REASONABLE):")
-            print("  - Current duration: \(currentDuration)s, asset duration: \(assetDuration)s")
-            print("  - Remaining extendable: \(remainingExtendableToRight)s")
+            print("📱 📏 RIGHT HANDLE LIMITS (ACCURATE):")
+            print("  - Asset duration: \(assetDuration)s")
+            print("  - Current trim: start=\(currentTrimPositions.start), end=\(currentTrimPositions.end)")
+            print("  - Current trim times: \(currentTrimStartTime)s to \(currentTrimEndTime)s")
+            print("  - Available right space: \(availableRightExtendSpace)s")
+            print("  - Max reasonable right extension: \(maxReasonableRightExtension)s")
             print("  - Max left movement: \(maxLeftMovement)px")
-            print("  - Max right movement: \(maxRightMovement)px (reasonable: \(maxReasonableRightExtension)s)")
+            print("  - Max right movement: \(maxRightMovement)px")
         }
         
         // Apply limits to the offset
@@ -698,5 +718,39 @@ extension TimelineItemView {
         // Trigger layout to restore original positions
         setNeedsLayout()
         layoutIfNeeded()
+    }
+    
+    /// Immediately highlights the specified handle using the same visual feedback as during trimming
+    func highlightHandle(direction: MultiLayerTimelineViewController.TrimDirection) {
+        print("📱 🎨 TimelineItemView.highlightHandle: \(direction)")
+        
+        // Ensure item is selected and handles are visible
+        setSelected(true)
+        
+        switch direction {
+        case .left:
+            leftResizeHandle.alpha = 1.0
+            leftResizeHandle.isHidden = false
+            
+            // Apply the same highlighting used during trimming
+            leftResizeHandle.backgroundColor = UIColor.red
+            leftResizeHandle.layer.borderWidth = 3
+            leftResizeHandle.layer.borderColor = UIColor.yellow.cgColor
+            
+        case .right:
+            rightResizeHandle.alpha = 1.0
+            rightResizeHandle.isHidden = false
+            
+            // Apply the same highlighting used during trimming
+            rightResizeHandle.backgroundColor = UIColor.blue
+            rightResizeHandle.layer.borderWidth = 3
+            rightResizeHandle.layer.borderColor = UIColor.cyan.cgColor
+            
+        case .none:
+            // Do nothing for .none case
+            break
+        }
+        
+        print("📱 ✅ Handle highlighted: \(direction)")
     }
 }

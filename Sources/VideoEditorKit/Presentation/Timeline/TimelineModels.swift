@@ -69,22 +69,25 @@ public class VideoTimelineItem: TimelineItem {
     
     public let asset: AVAsset
     public let thumbnails: [CGImage]
+    public let trimPositions: (start: Double, end: Double) // Thêm field này
     
-    public init(asset: AVAsset, thumbnails: [CGImage], startTime: CMTime, duration: CMTime, id: String? = nil) {
+    public init(asset: AVAsset, thumbnails: [CGImage], startTime: CMTime, duration: CMTime, trimPositions: (start: Double, end: Double) = (0.0, 1.0), id: String? = nil) {
         self.id = id ?? UUID().uuidString
         self.asset = asset
         self.thumbnails = thumbnails
         self.startTime = startTime
         self.duration = duration
+        self.trimPositions = trimPositions
     }
     
     // Internal initializer that preserves ID (for timeline regeneration)
-    internal init(id: String, asset: AVAsset, thumbnails: [CGImage], startTime: CMTime, duration: CMTime) {
+    internal init(id: String, asset: AVAsset, thumbnails: [CGImage], startTime: CMTime, duration: CMTime, trimPositions: (start: Double, end: Double) = (0.0, 1.0)) {
         self.id = id
         self.asset = asset
         self.thumbnails = thumbnails
         self.startTime = startTime
         self.duration = duration
+        self.trimPositions = trimPositions
     }
 }
 
