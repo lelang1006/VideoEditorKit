@@ -9,6 +9,14 @@ import Foundation
 import AVFoundation
 import UIKit
 
+// MARK: - Array Extension
+
+extension Array {
+    subscript(safe index: Index) -> Element? {
+        return indices.contains(index) ? self[index] : nil
+    }
+}
+
 // MARK: - Timeline Track Types
 
 public enum TimelineTrackType {
@@ -16,6 +24,22 @@ public enum TimelineTrackType {
     case audio(AudioTrackSubtype)
     case text
     case sticker
+}
+
+// MARK: - Debug Extensions
+extension TimelineTrackType {
+    var debugDescription: String {
+        switch self {
+        case .video:
+            return "video"
+        case .audio(let subtype):
+            return "audio(\(subtype))"
+        case .text:
+            return "text"
+        case .sticker:
+            return "sticker"
+        }
+    }
 }
 
 public enum AudioTrackSubtype {

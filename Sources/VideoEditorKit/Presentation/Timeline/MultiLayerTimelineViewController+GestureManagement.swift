@@ -225,8 +225,8 @@ extension MultiLayerTimelineViewController {
                         print("📱 🎯 Found item \(itemView.item.id)")
                         
                         // Determine if this is a trim gesture (near edges) or selection
-                        let handleWidth: CGFloat = 80  // Large touch area for easier testing
-                        let tolerance: CGFloat = 40    // Additional tolerance
+                        let handleWidth: CGFloat = 44  // Large touch area for easier testing
+                        let tolerance: CGFloat = 16    // Additional tolerance
                         
                         let leftHandleEndX = handleWidth + tolerance
                         let rightHandleStartX = itemView.bounds.width - handleWidth - tolerance
