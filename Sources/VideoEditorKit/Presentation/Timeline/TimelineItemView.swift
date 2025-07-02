@@ -513,14 +513,47 @@ extension TimelineItemView {
         leftResizeHandle.clipsToBounds = false
         superview?.clipsToBounds = false
         
+        // Calculate movement limits for left handle
+        let handleWidth: CGFloat = 20
+        let pixelsPerSecond = configuration.pixelsPerSecond
+        
+        // Calculate how far left we can go (to allow reverting to original position)
+        var maxLeftMovement: CGFloat = -200  // Default: allow 200px left movement
+        var maxRightMovement: CGFloat = bounds.width - handleWidth  // Default: to right edge
+        
+        if let videoItem = item as? VideoTimelineItem {
+            // For video items, calculate based on asset duration
+            let currentStartTime = item.startTime.seconds
+            let currentDuration = item.duration.seconds
+            
+            // Allow left movement back to startTime = 0
+            maxLeftMovement = -CGFloat(currentStartTime * Double(pixelsPerSecond))
+            
+            // Allow right movement but keep minimum 0.1s duration
+            let minDuration = 0.1
+            let maxTrimFromLeft = currentDuration - minDuration
+            maxRightMovement = CGFloat(maxTrimFromLeft * Double(pixelsPerSecond))
+            
+            print("📱 📏 LEFT HANDLE LIMITS:")
+            print("  - Current start: \(currentStartTime)s, duration: \(currentDuration)s")
+            print("  - Max left movement: \(maxLeftMovement)px")
+            print("  - Max right movement: \(maxRightMovement)px")
+        }
+        
+        // Apply limits to the offset
+        let clampedOffsetX = max(maxLeftMovement, min(offsetX, maxRightMovement))
+        
+        if clampedOffsetX != offsetX {
+            print("📱 ⚠️ LEFT HANDLE: Clamped offset from \(offsetX) to \(clampedOffsetX)")
+        }
+        
         print("📱 🏗️ BEFORE RECALCULATION:")
         print("  - Current handle frame: \(leftResizeHandle.frame)")
         print("  - Self bounds: \(bounds)")
-        print("  - OffsetX: \(offsetX)")
+        print("  - Original offsetX: \(offsetX), Clamped: \(clampedOffsetX)")
         
         // Calculate new frame position directly (no transform!)
-        let handleWidth: CGFloat = 20
-        let newX = offsetX // Move handle to the offset position directly
+        let newX = clampedOffsetX // Use clamped value
         let newFrame = CGRect(
             x: newX,
             y: 0,
@@ -567,15 +600,49 @@ extension TimelineItemView {
         rightResizeHandle.clipsToBounds = false
         superview?.clipsToBounds = false
         
+        // Calculate movement limits for right handle
+        let pixelsPerSecond = configuration.pixelsPerSecond
+        
+        // Calculate how far left and right we can move the right handle
+        var maxLeftMovement: CGFloat = -200  // Default: allow 200px left movement
+        var maxRightMovement: CGFloat = 200  // Default: allow 200px right movement
+        
+        if let videoItem = item as? VideoTimelineItem {
+            // For video items, calculate based on asset duration
+            let currentDuration = item.duration.seconds
+            let assetDuration = videoItem.asset.duration.seconds
+            
+            // Allow left movement but keep minimum 0.1s duration
+            let minDuration = 0.1
+            let maxTrimFromRight = currentDuration - minDuration
+            maxLeftMovement = -CGFloat(maxTrimFromRight * Double(pixelsPerSecond))
+            
+            // Allow right movement up to asset duration
+            let maxExtensionDuration = assetDuration - currentDuration
+            maxRightMovement = CGFloat(maxExtensionDuration * Double(pixelsPerSecond))
+            
+            print("📱 📏 RIGHT HANDLE LIMITS:")
+            print("  - Current duration: \(currentDuration)s, asset duration: \(assetDuration)s")
+            print("  - Max left movement: \(maxLeftMovement)px")
+            print("  - Max right movement: \(maxRightMovement)px")
+        }
+        
+        // Apply limits to the offset
+        let clampedOffsetX = max(maxLeftMovement, min(offsetX, maxRightMovement))
+        
+        if clampedOffsetX != offsetX {
+            print("📱 ⚠️ RIGHT HANDLE: Clamped offset from \(offsetX) to \(clampedOffsetX)")
+        }
+        
         print("📱 🏗️ RIGHT BEFORE RECALCULATION:")
         print("  - Current handle frame: \(rightResizeHandle.frame)")
         print("  - Self bounds: \(bounds)")
-        print("  - OffsetX: \(offsetX)")
+        print("  - Original offsetX: \(offsetX), Clamped: \(clampedOffsetX)")
         
         // Calculate new frame position directly (no transform!)
         let handleWidth: CGFloat = 20
         let originalRightX = bounds.width - handleWidth // Original right handle position
-        let newX = originalRightX + offsetX // Move from original position
+        let newX = originalRightX + clampedOffsetX // Use clamped value
         let newFrame = CGRect(
             x: newX,
             y: 0,
