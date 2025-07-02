@@ -504,9 +504,9 @@ extension TimelineItemView {
         leftResizeHandle.isHidden = false
         
         // Make handle visible for debugging
-        leftResizeHandle.backgroundColor = UIColor.red
+        leftResizeHandle.backgroundColor = UIColor.blue
         leftResizeHandle.layer.borderWidth = 3
-        leftResizeHandle.layer.borderColor = UIColor.yellow.cgColor
+        leftResizeHandle.layer.borderColor = UIColor.cyan.cgColor
         
         // Disable clipping to allow handle to move outside bounds
         clipsToBounds = false
