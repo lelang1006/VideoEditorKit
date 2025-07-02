@@ -277,10 +277,6 @@ extension MultiLayerTimelineViewController {
 extension MultiLayerTimelineViewController {
     
     func updateTracksView() {
-        // Preserve current selection before removing track views
-        let currentSelectedItemId = selectedItem?.id
-        let currentSelectedItemType = selectedItem?.trackType
-        
         // Remove existing track views
         trackViews.forEach { $0.removeFromSuperview() }
         trackViews.removeAll()
@@ -297,20 +293,6 @@ extension MultiLayerTimelineViewController {
         }
         
         updateContentSize()
-        
-        // Restore selection after track views are created
-        if let selectedId = currentSelectedItemId {
-            // First try to find exact ID match
-            if let item = findItemById(selectedId) {
-                print("📱 🔄 updateTracksView - Restoring selection by exact ID: \(selectedId)")
-                selectedItem = item
-                selectItem(item)
-            } else if let itemType = currentSelectedItemType {
-                // Fallback to type match if ID no longer exists
-                print("📱 🔄 updateTracksView - Item ID not found, restoring by type: \(itemType.debugDescription)")
-                restoreSelectionByType(itemType: itemType)
-            }
-        }
     }
     
     func updateContentSize() {
@@ -628,23 +610,6 @@ extension MultiLayerTimelineViewController: TimelineThemeAware {
     }
 }
 
-// MARK: - Debug Extensions
-
-extension TimelineTrackType {
-    var debugDescription: String {
-        switch self {
-        case .video:
-            return "video"
-        case .audio(let subtype):
-            return "audio(\(subtype))"
-        case .text:
-            return "text"
-        case .sticker:
-            return "sticker"
-        }
-    }
-}
-
 // MARK: - Array Extension
 
 extension Array {
@@ -665,13 +630,6 @@ extension MultiLayerTimelineViewController {
         let audioReplacement = store.audioReplacement
         let volume = store.volume
         let isMuted = store.isMuted
-        
-        // Preserve current selection by type BEFORE updating tracks
-        var selectedItemType: TimelineTrackType?
-        if let currentSelected = selectedItem {
-            selectedItemType = currentSelected.trackType
-            print("📱 🔄 updateTracksFromStore - Preserving selection type: \(selectedItemType?.debugDescription ?? "nil")")
-        }
                 
         // Calculate durations based on trim and speed
         let originalDuration = asset.duration
@@ -734,10 +692,14 @@ extension MultiLayerTimelineViewController {
         // Update tracks (this triggers updateTracksView via didSet)
         self.tracks = newTracks
 
-        // Restore selection using saved type - do this IMMEDIATELY, not async
-        if let itemType = selectedItemType {
-            print("📱 🔄 updateTracksFromStore - Restoring selection IMMEDIATELY for type: \(itemType.debugDescription)")
-            self.restoreSelectionByType(itemType: itemType)
+        // Preserve current selection
+        let currentSelectedItemId = selectedItem?.id
+
+        // Restore selection if item with same type still exists
+        if let selectedId = currentSelectedItemId {
+            DispatchQueue.main.async {
+                self.restoreSelection(itemId: selectedId)
+            }
         }
         
         // Reset scroll position to beginning
@@ -779,49 +741,6 @@ extension MultiLayerTimelineViewController {
         
         if needsUpdate {
             updateContentSize()
-        }
-    }
-    
-    /// Restores selection by finding first item of matching type
-    private func restoreSelectionByType(itemType: TimelineTrackType) {
-        print("📱 🔄 Attempting to restore selection by type: \(itemType.debugDescription)")
-        
-        // Find first item of matching type
-        for track in tracks {
-            for item in track.items {
-                if itemTypesMatch(item.trackType, itemType) {
-                    print("📱 ✅ Restored selection by type match: \(itemType.debugDescription)")
-                    selectedItem = item
-                    selectItem(item)
-                    
-                    // Also ensure the selection is immediately propagated to track views
-                    DispatchQueue.main.async {
-                        print("📱 🔄 Re-enforcing selection for item: \(item.id)")
-                        self.trackViews.forEach { trackView in
-                            trackView.selectItem(item)
-                        }
-                    }
-                    return
-                }
-            }
-        }
-        
-        print("📱 ⚠️ Could not restore selection for type: \(itemType.debugDescription)")
-    }
-    
-    /// Helper method to check if two track types match (handling enum cases)
-    private func itemTypesMatch(_ type1: TimelineTrackType, _ type2: TimelineTrackType) -> Bool {
-        switch (type1, type2) {
-        case (.video, .video):
-            return true
-        case (.audio(let subtype1), .audio(let subtype2)):
-            return subtype1 == subtype2
-        case (.text, .text):
-            return true
-        case (.sticker, .sticker):
-            return true
-        default:
-            return false
         }
     }
     

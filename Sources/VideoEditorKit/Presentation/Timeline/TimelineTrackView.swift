@@ -63,18 +63,18 @@ extension TimelineTrackView {
     func updateItem(_ item: TimelineItem) {
         guard let itemView = itemViews.first(where: { $0.item.id == item.id }) else { return }
         
-        // Check if this item should be selected by checking the current selection state
-        let shouldBeSelected = itemView.itemIsSelected
-        print("📱 🔄 TimelineTrackView.updateItem - current selection state: \(shouldBeSelected)")
+        // Preserve selection state during update
+        let wasSelected = itemView.itemIsSelected
+        print("📱 🔄 TimelineTrackView.updateItem - preserving selection: \(wasSelected)")
         
         itemView.updateItemData(item)
         
-        // Position immediately
+        // Position immediately, then restore selection
         positionItemView(itemView, for: item)
         
         // Restore selection immediately if it was previously selected
-        if shouldBeSelected {
-            print("📱 🔄 TimelineTrackView.updateItem - restoring selection state immediately")
+        if wasSelected {
+            print("📱 🔄 TimelineTrackView.updateItem - restoring selection immediately")
             itemView.setSelected(true)
         }
     }

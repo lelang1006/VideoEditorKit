@@ -517,26 +517,31 @@ extension TimelineItemView {
         let handleWidth: CGFloat = 20
         let pixelsPerSecond = configuration.pixelsPerSecond
         
-        // Calculate how far left we can go (to allow reverting to original position)
+        // Calculate how far left we can go (based on available trim space)
         var maxLeftMovement: CGFloat = -200  // Default: allow 200px left movement
         var maxRightMovement: CGFloat = bounds.width - handleWidth  // Default: to right edge
         
         if let videoItem = item as? VideoTimelineItem {
-            // For video items, calculate based on asset duration
-            let currentStartTime = item.startTime.seconds
+            // For video items, calculate based on what's actually available to trim
             let currentDuration = item.duration.seconds
+            let assetDuration = videoItem.asset.duration.seconds
             
-            // Allow left movement back to startTime = 0
-            maxLeftMovement = -CGFloat(currentStartTime * Double(pixelsPerSecond))
+            // Calculate reasonable limits for left movement
+            // Maximum left trim should be limited to what we can actually trim
+            // Assume that current video represents the remaining trimmable portion
+            let remainingTrimmableFromLeft = assetDuration - currentDuration
+            let maxReasonableLeftTrim = min(remainingTrimmableFromLeft + 1.0, 3.0) // Max 3 seconds or available space + 1s buffer
+            maxLeftMovement = -CGFloat(maxReasonableLeftTrim * Double(pixelsPerSecond))
             
             // Allow right movement but keep minimum 0.1s duration
             let minDuration = 0.1
             let maxTrimFromLeft = currentDuration - minDuration
             maxRightMovement = CGFloat(maxTrimFromLeft * Double(pixelsPerSecond))
             
-            print("📱 📏 LEFT HANDLE LIMITS:")
-            print("  - Current start: \(currentStartTime)s, duration: \(currentDuration)s")
-            print("  - Max left movement: \(maxLeftMovement)px")
+            print("📱 📏 LEFT HANDLE LIMITS (REASONABLE):")
+            print("  - Current duration: \(currentDuration)s, asset duration: \(assetDuration)s")
+            print("  - Remaining trimmable: \(remainingTrimmableFromLeft)s")
+            print("  - Max left movement: \(maxLeftMovement)px (reasonable: \(maxReasonableLeftTrim)s)")
             print("  - Max right movement: \(maxRightMovement)px")
         }
         
@@ -608,7 +613,7 @@ extension TimelineItemView {
         var maxRightMovement: CGFloat = 200  // Default: allow 200px right movement
         
         if let videoItem = item as? VideoTimelineItem {
-            // For video items, calculate based on asset duration
+            // For video items, calculate based on what's actually available to extend
             let currentDuration = item.duration.seconds
             let assetDuration = videoItem.asset.duration.seconds
             
@@ -617,14 +622,17 @@ extension TimelineItemView {
             let maxTrimFromRight = currentDuration - minDuration
             maxLeftMovement = -CGFloat(maxTrimFromRight * Double(pixelsPerSecond))
             
-            // Allow right movement up to asset duration
-            let maxExtensionDuration = assetDuration - currentDuration
-            maxRightMovement = CGFloat(maxExtensionDuration * Double(pixelsPerSecond))
+            // Calculate reasonable limits for right movement
+            // Maximum right extension should be limited to what's actually available
+            let remainingExtendableToRight = assetDuration - currentDuration
+            let maxReasonableRightExtension = min(remainingExtendableToRight + 1.0, 3.0) // Max 3 seconds or available space + 1s buffer
+            maxRightMovement = CGFloat(maxReasonableRightExtension * Double(pixelsPerSecond))
             
-            print("📱 📏 RIGHT HANDLE LIMITS:")
+            print("📱 📏 RIGHT HANDLE LIMITS (REASONABLE):")
             print("  - Current duration: \(currentDuration)s, asset duration: \(assetDuration)s")
+            print("  - Remaining extendable: \(remainingExtendableToRight)s")
             print("  - Max left movement: \(maxLeftMovement)px")
-            print("  - Max right movement: \(maxRightMovement)px")
+            print("  - Max right movement: \(maxRightMovement)px (reasonable: \(maxReasonableRightExtension)s)")
         }
         
         // Apply limits to the offset

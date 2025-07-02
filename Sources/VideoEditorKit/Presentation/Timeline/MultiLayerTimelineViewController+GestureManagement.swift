@@ -376,164 +376,79 @@ extension MultiLayerTimelineViewController {
     private func finalizeTrimGesture(item: TimelineItem, direction: TrimDirection, initialItem: TimelineItem) {
         print("📱 ✅ Finalizing trim gesture for item: \(item.id)")
         
-        // 🎯 Calculate final trimmed item using the translation we've been tracking
-        // Use initialItem as the base to ensure we calculate from the original state
-        guard let finalItem = calculateFinalTrimmedItem(from: initialItem, translation: currentTrimTranslation, direction: direction) else {
-            print("📱 ❌ Could not calculate final trimmed item state")
-            resetTrimState()
-            return
+        // Calculate trim changes for video items
+        if let videoItem = item as? VideoTimelineItem {
+            let pixelsPerSecond = configuration.pixelsPerSecond
+            let deltaSeconds = Double(currentTrimTranslation.x) / Double(pixelsPerSecond)
+            
+            // Get current store trim state
+            let currentTrim = store.trimPositions
+            let asset = videoItem.asset
+            let totalDuration = asset.duration.seconds
+            let currentTrimmedDuration = totalDuration * (currentTrim.1 - currentTrim.0)
+            
+            // Calculate new trim ratios based on direction and delta
+            var newTrimStartRatio = currentTrim.0
+            var newTrimEndRatio = currentTrim.1
+            
+            switch direction {
+            case .left:
+                // Left trim: moving start position
+                // deltaSeconds represents change in trimmed duration
+                let newTrimmedDuration = currentTrimmedDuration - (deltaSeconds * store.speed)
+                let durationChangeRatio = (currentTrimmedDuration - newTrimmedDuration) / totalDuration
+                newTrimStartRatio = currentTrim.0 + durationChangeRatio
+                
+            case .right:
+                // Right trim: moving end position
+                let newTrimmedDuration = currentTrimmedDuration + (deltaSeconds * store.speed)
+                let durationChangeRatio = (newTrimmedDuration - currentTrimmedDuration) / totalDuration
+                newTrimEndRatio = currentTrim.1 + durationChangeRatio
+                
+            case .none:
+                print("📱 ❌ Invalid trim direction")
+                resetTrimState()
+                return
+            }
+            
+            // Ensure bounds are valid
+            newTrimStartRatio = max(0.0, min(newTrimStartRatio, 1.0))
+            newTrimEndRatio = max(0.0, min(newTrimEndRatio, 1.0))
+            
+            // Ensure start < end with minimum duration
+            let minDurationRatio = 0.1 / totalDuration // Minimum 0.1 second
+            if newTrimEndRatio - newTrimStartRatio < minDurationRatio {
+                if direction == .left {
+                    newTrimStartRatio = newTrimEndRatio - minDurationRatio
+                } else {
+                    newTrimEndRatio = newTrimStartRatio + minDurationRatio
+                }
+            }
+            
+            // Round to 4 decimal places to ensure we can reach exact 0.0 and 1.0
+            let roundedStartRatio = round(newTrimStartRatio * 10000) / 10000
+            let roundedEndRatio = round(newTrimEndRatio * 10000) / 10000
+            
+            print("📹 Store update - Video trim: start=\(roundedStartRatio), end=\(roundedEndRatio)")
+            print("📹 Previous trim: start=\(currentTrim.0), end=\(currentTrim.1)")
+            print("📹 Delta: \(deltaSeconds)s, Direction: \(direction)")
+            print("📹 Duration change: \(currentTrimmedDuration)s -> \((roundedEndRatio - roundedStartRatio) * totalDuration)s")
+            
+            // Update store - this will trigger updateTracksFromStore
+            store.trimPositions = (roundedStartRatio, roundedEndRatio)
         }
         
-        print("📱 ✅ Final calculated trim: start=\(finalItem.startTime.seconds)s, duration=\(finalItem.duration.seconds)s")
-        print("📱 📊 Original item: start=\(initialItem.startTime.seconds)s, duration=\(initialItem.duration.seconds)s")
-        print("📱 📏 Translation used: \(currentTrimTranslation.x)px")
-        
-        // 🎯 Reset visual state
+        // Reset visual state
         resetTrimState()
         
-        // 🔄 The item view frame will be updated automatically when we call updateItem()
-        // So we just need to make sure the data model is updated properly
-        
-        // 🔄 Now perform the actual data update
-        updateItem(finalItem)
-        
-        // Ensure item remains selected
-        selectedItem = finalItem
-        selectItem(finalItem)
-        
-        // Notify delegate
-        delegate?.timeline(self, didTrimItem: finalItem, newStartTime: finalItem.startTime, newDuration: finalItem.duration)
-        
-        // Update store for video items
-        if let videoItem = finalItem as? VideoTimelineItem {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                let totalDuration = videoItem.asset.duration.seconds
-                let trimStartRatio = finalItem.startTime.seconds / totalDuration
-                let trimEndRatio = (finalItem.startTime.seconds + finalItem.duration.seconds) / totalDuration
-                
-                print("📹 Store update - Video trim: start=\(trimStartRatio), end=\(trimEndRatio)")
-                self.store.trimPositions = (trimStartRatio, trimEndRatio)
-            }
-        }
-    }
-    
-    /// Calculates the final trimmed item state based on translation amount
-    private func calculateFinalTrimmedItem(from item: TimelineItem, translation: CGPoint, direction: TrimDirection) -> TimelineItem? {
-        // Find the item view to get current frame
-        for trackView in trackViews {
-            if let itemView = trackView.itemViews.first(where: { $0.item.id == item.id }) {
-                let currentFrame = itemView.frame
-                let pixelsPerSecond = configuration.pixelsPerSecond
-                
-                var newStartTime = item.startTime
-                var newDuration = item.duration
-                
-                switch direction {
-                case .left:
-                    // For left handle: translation.x affects start time and duration
-                    let deltaSeconds = Double(translation.x) / Double(pixelsPerSecond)
-                    newStartTime = CMTime(
-                        seconds: item.startTime.seconds + deltaSeconds,
-                        preferredTimescale: configuration.timeScale
-                    )
-                    newDuration = CMTime(
-                        seconds: item.duration.seconds - deltaSeconds,
-                        preferredTimescale: configuration.timeScale
-                    )
-                    
-                case .right:
-                    // For right handle: translation.x affects only duration
-                    let deltaSeconds = Double(translation.x) / Double(pixelsPerSecond)
-                    newDuration = CMTime(
-                        seconds: item.duration.seconds + deltaSeconds,
-                        preferredTimescale: configuration.timeScale
-                    )
-                    
-                case .none:
-                    return nil
-                }
-                
-                print("📱 🔄 Translation: \(translation.x)px = \(Double(translation.x) / Double(pixelsPerSecond))s")
-                print("📱 🔄 Calculated: start=\(newStartTime.seconds)s, duration=\(newDuration.seconds)s")
-                
-                // Apply validation to ensure values stay within bounds
-                let validated = validateTrimParameters(
-                    for: item,
-                    proposedStartTime: newStartTime,
-                    proposedDuration: newDuration
-                )
-                
-                print("📱 ✅ Final validated values: start=\(validated.startTime.seconds)s, duration=\(validated.duration.seconds)s")
-                
-                // Create updated item with validated values
-                var finalItem = item
-                finalItem.startTime = validated.startTime
-                finalItem.duration = validated.duration
-                
-                return finalItem
-            }
-        }
-        
-        return nil
+        // The timeline will be rebuilt automatically via store updates
+        // Selection will be restored in updateTracksFromStore
     }
 }
 
-// MARK: - Trim Validation Helpers
+// MARK: - Trim Visual State Management
 
 extension MultiLayerTimelineViewController {
-    
-    /// Validates and adjusts trim parameters to ensure they stay within asset bounds
-    private func validateTrimParameters(
-        for item: TimelineItem,
-        proposedStartTime: CMTime,
-        proposedDuration: CMTime
-    ) -> (startTime: CMTime, duration: CMTime) {
-        
-        let originalStartTime = proposedStartTime.seconds
-        let originalDuration = proposedDuration.seconds
-        
-        var validatedStartTime = proposedStartTime
-        var validatedDuration = proposedDuration
-        
-        // Ensure startTime is not negative
-        validatedStartTime = CMTime(
-            seconds: max(0, proposedStartTime.seconds),
-            preferredTimescale: proposedStartTime.timescale
-        )
-        
-        // For video items, ensure we don't exceed asset duration
-        if let videoItem = item as? VideoTimelineItem {
-            let originalAssetDuration = videoItem.asset.duration
-            let maxPossibleDuration = originalAssetDuration.seconds - validatedStartTime.seconds
-            
-            validatedDuration = CMTime(
-                seconds: min(proposedDuration.seconds, maxPossibleDuration),
-                preferredTimescale: proposedDuration.timescale
-            )
-            
-            // Log if we had to clamp due to asset bounds
-            if validatedDuration.seconds != proposedDuration.seconds {
-                print("📱 ⚠️ Clamped duration due to asset bounds: \(proposedDuration.seconds)s → \(validatedDuration.seconds)s")
-            }
-        }
-        
-        // Ensure minimum duration
-        validatedDuration = CMTime(
-            seconds: max(0.1, validatedDuration.seconds),
-            preferredTimescale: validatedDuration.timescale
-        )
-        
-        // Log significant changes
-        if abs(validatedStartTime.seconds - originalStartTime) > 0.01 {
-            print("📱 ⚠️ Adjusted startTime: \(originalStartTime)s → \(validatedStartTime.seconds)s")
-        }
-        
-        if abs(validatedDuration.seconds - originalDuration) > 0.01 {
-            print("📱 ⚠️ Adjusted duration: \(originalDuration)s → \(validatedDuration.seconds)s")
-        }
-        
-        return (validatedStartTime, validatedDuration)
-    }
     
     /// Resets the visual state after trimming is complete
     private func resetTrimState() {
