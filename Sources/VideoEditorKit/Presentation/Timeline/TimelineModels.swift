@@ -48,6 +48,19 @@ public enum AudioTrackSubtype {
     case voiceover
 }
 
+// MARK: - Trim Behavior
+
+public enum TrimBehavior {
+    case master           // Video track - trim affects entire timeline
+    case dependent        // Other tracks - trim only affects relative timing
+}
+
+public enum TrimDirection {
+    case left
+    case right
+    case none
+}
+
 // MARK: - Timeline Item Protocol
 
 public protocol TimelineItem {
@@ -56,6 +69,7 @@ public protocol TimelineItem {
     var duration: CMTime { get set }
     var trackType: TimelineTrackType { get }
     var isSelected: Bool { get set }
+    var trimBehavior: TrimBehavior { get }
 }
 
 // MARK: - Concrete Timeline Items
@@ -67,9 +81,12 @@ public class VideoTimelineItem: TimelineItem {
     public let trackType: TimelineTrackType = .video
     public var isSelected: Bool = false
     
+    // Master track behavior
+    public let trimBehavior: TrimBehavior = .master
+    
     public let asset: AVAsset
     public let thumbnails: [CGImage]
-    public let trimPositions: (start: Double, end: Double) // Thêm field này
+    public let trimPositions: (start: Double, end: Double) // Global trim positions (affects entire timeline)
     
     public init(asset: AVAsset, thumbnails: [CGImage], startTime: CMTime, duration: CMTime, trimPositions: (start: Double, end: Double) = (0.0, 1.0), id: String? = nil) {
         self.id = id ?? UUID().uuidString
@@ -98,13 +115,19 @@ public class AudioTimelineItem: TimelineItem {
     public let trackType: TimelineTrackType
     public var isSelected: Bool = false
     
+    // Dependent track behavior
+    public let trimBehavior: TrimBehavior = .dependent
+    
     public let asset: AVAsset?
     public let waveform: [Float] // Audio waveform data
     public let title: String
     public let volume: Float
     public let isMuted: Bool
     
-    public init(trackType: TimelineTrackType, asset: AVAsset?, waveform: [Float], title: String, volume: Float, isMuted: Bool, startTime: CMTime, duration: CMTime, id: String? = nil) {
+    // Relative trim positions (relative to video timeline)
+    public var relativeTrimPositions: (start: Double, end: Double)
+    
+    public init(trackType: TimelineTrackType, asset: AVAsset?, waveform: [Float], title: String, volume: Float, isMuted: Bool, startTime: CMTime, duration: CMTime, relativeTrimPositions: (start: Double, end: Double) = (0.0, 1.0), id: String? = nil) {
         self.id = id ?? UUID().uuidString
         self.trackType = trackType
         self.asset = asset
@@ -114,6 +137,19 @@ public class AudioTimelineItem: TimelineItem {
         self.isMuted = isMuted
         self.startTime = startTime
         self.duration = duration
+        self.relativeTrimPositions = relativeTrimPositions
+    }
+    
+    /// Calculate absolute time range in original asset based on video trim positions
+    public func getAbsoluteTimeRange(relativeTo videoItem: VideoTimelineItem) -> (start: Double, end: Double) {
+        let videoStart = videoItem.trimPositions.start
+        let videoEnd = videoItem.trimPositions.end
+        let videoDuration = videoEnd - videoStart
+        
+        let audioStart = videoStart + (videoDuration * relativeTrimPositions.start)
+        let audioEnd = videoStart + (videoDuration * relativeTrimPositions.end)
+        
+        return (audioStart, audioEnd)
     }
 }
 
@@ -124,12 +160,18 @@ public class TextTimelineItem: TimelineItem {
     public let trackType: TimelineTrackType = .text
     public var isSelected: Bool = false
     
+    // Dependent track behavior
+    public let trimBehavior: TrimBehavior = .dependent
+    
     public let text: String
     public let font: UIFont
     public let color: UIColor
     public let position: CGPoint
     
-    public init(text: String, font: UIFont, color: UIColor, position: CGPoint, startTime: CMTime, duration: CMTime, id: String? = nil) {
+    // Relative trim positions (relative to video timeline)
+    public var relativeTrimPositions: (start: Double, end: Double)
+    
+    public init(text: String, font: UIFont, color: UIColor, position: CGPoint, startTime: CMTime, duration: CMTime, relativeTrimPositions: (start: Double, end: Double) = (0.0, 1.0), id: String? = nil) {
         self.id = id ?? UUID().uuidString
         self.text = text
         self.font = font
@@ -137,6 +179,19 @@ public class TextTimelineItem: TimelineItem {
         self.position = position
         self.startTime = startTime
         self.duration = duration
+        self.relativeTrimPositions = relativeTrimPositions
+    }
+    
+    /// Calculate absolute time range in original asset based on video trim positions
+    public func getAbsoluteTimeRange(relativeTo videoItem: VideoTimelineItem) -> (start: Double, end: Double) {
+        let videoStart = videoItem.trimPositions.start
+        let videoEnd = videoItem.trimPositions.end
+        let videoDuration = videoEnd - videoStart
+        
+        let textStart = videoStart + (videoDuration * relativeTrimPositions.start)
+        let textEnd = videoStart + (videoDuration * relativeTrimPositions.end)
+        
+        return (textStart, textEnd)
     }
 }
 
@@ -147,12 +202,18 @@ public class StickerTimelineItem: TimelineItem {
     public let trackType: TimelineTrackType = .sticker
     public var isSelected: Bool = false
     
+    // Dependent track behavior
+    public let trimBehavior: TrimBehavior = .dependent
+    
     public let image: UIImage
     public let position: CGPoint
     public let scale: CGFloat
     public let rotation: CGFloat
     
-    public init(image: UIImage, position: CGPoint, scale: CGFloat, rotation: CGFloat, startTime: CMTime, duration: CMTime, id: String? = nil) {
+    // Relative trim positions (relative to video timeline)
+    public var relativeTrimPositions: (start: Double, end: Double)
+    
+    public init(image: UIImage, position: CGPoint, scale: CGFloat, rotation: CGFloat, startTime: CMTime, duration: CMTime, relativeTrimPositions: (start: Double, end: Double) = (0.0, 1.0), id: String? = nil) {
         self.id = id ?? UUID().uuidString
         self.image = image
         self.position = position
@@ -160,6 +221,19 @@ public class StickerTimelineItem: TimelineItem {
         self.rotation = rotation
         self.startTime = startTime
         self.duration = duration
+        self.relativeTrimPositions = relativeTrimPositions
+    }
+    
+    /// Calculate absolute time range in original asset based on video trim positions
+    public func getAbsoluteTimeRange(relativeTo videoItem: VideoTimelineItem) -> (start: Double, end: Double) {
+        let videoStart = videoItem.trimPositions.start
+        let videoEnd = videoItem.trimPositions.end
+        let videoDuration = videoEnd - videoStart
+        
+        let stickerStart = videoStart + (videoDuration * relativeTrimPositions.start)
+        let stickerEnd = videoStart + (videoDuration * relativeTrimPositions.end)
+        
+        return (stickerStart, stickerEnd)
     }
 }
 
@@ -276,7 +350,8 @@ extension TimelineTrack {
             asset: AVAsset(), // In real usage, provide actual asset
             thumbnails: [], // In real usage, provide actual thumbnails
             startTime: CMTime.zero,
-            duration: CMTime(seconds: 10, preferredTimescale: 600)
+            duration: CMTime(seconds: 10, preferredTimescale: 600),
+            trimPositions: (0.0, 1.0) // No trim initially
         )
         
         return TimelineTrack(type: .video, items: [videoItem])
@@ -291,7 +366,8 @@ extension TimelineTrack {
             volume: 1.0,
             isMuted: false,
             startTime: CMTime.zero,
-            duration: CMTime(seconds: 10, preferredTimescale: 600)
+            duration: CMTime(seconds: 10, preferredTimescale: 600),
+            relativeTrimPositions: (0.0, 1.0) // No trim initially
         )
         
         return TimelineTrack(type: .audio(.original), items: [audioItem])
@@ -304,7 +380,8 @@ extension TimelineTrack {
             color: .white,
             position: CGPoint(x: 100, y: 100),
             startTime: CMTime(seconds: 2, preferredTimescale: 600),
-            duration: CMTime(seconds: 3, preferredTimescale: 600)
+            duration: CMTime(seconds: 3, preferredTimescale: 600),
+            relativeTrimPositions: (0.0, 1.0) // No trim initially
         )
         
         return TimelineTrack(type: .text, items: [textItem])
