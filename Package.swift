@@ -18,12 +18,8 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "VideoPlayer",
-            dependencies: ["PureLayout"]),
-        .target(
             name: "VideoEditorKit",
             dependencies: [
-                "VideoPlayer",
                 "PureLayout"
             ],
             resources: [.process("Resources")]),

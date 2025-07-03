@@ -9,7 +9,6 @@ import AVFoundation
 import Combine
 import PureLayout
 import UIKit
-import VideoPlayer
 
 public final class VideoEditorViewController: UIViewController {
 

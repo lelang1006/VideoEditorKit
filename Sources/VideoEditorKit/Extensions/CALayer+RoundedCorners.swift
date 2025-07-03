@@ -5,6 +5,7 @@
 //  Created by Titouan Van Belle on 17.09.20.
 //
 
+import QuartzCore
 import UIKit
 
 extension CALayer {
