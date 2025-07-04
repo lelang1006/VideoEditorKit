@@ -69,6 +69,11 @@ extension TimelineItemView {
         item = newItem
         updateContent()
         updateLayout()
+        
+        // Set up waveform updates for audio items if needed
+        if let audioItem = newItem as? AudioTimelineItem, audioItem.waveform.isEmpty {
+            setupWaveformUpdates()
+        }
     }
 }
 
@@ -153,7 +158,14 @@ extension TimelineItemView {
         backgroundView.backgroundColor = theme.audioItemColor
         
         if let audioItem = item as? AudioTimelineItem {
-            addWaveform(audioItem.waveform)
+            // If waveform is already available, use it
+            let currentWaveform = audioItem.waveform
+            if !currentWaveform.isEmpty {
+                addWaveform(currentWaveform)
+            } else {
+                // Start async waveform loading
+                setupWaveformUpdates()
+            }
         }
     }
     
@@ -231,12 +243,34 @@ extension TimelineItemView {
     }
     
     func addWaveform(_ waveform: [Float]) {
+        // Clear existing waveform views
+        contentView.subviews.compactMap { $0 as? WaveformView }.forEach { $0.removeFromSuperview() }
+        
         let waveformView = WaveformView(waveform: waveform)
         waveformView.translatesAutoresizingMaskIntoConstraints = true
         contentView.addSubview(waveformView)
         
         // Layout using frames in layoutSubviews
         setNeedsLayout()
+    }
+    
+    private func setupWaveformUpdates() {
+        // Set up waveform updates for audio items
+        if let audioItem = item as? AudioTimelineItem {
+            // Get waveform asynchronously and update view
+            audioItem.getWaveform { [weak self] result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let waveform):
+                        self?.addWaveform(waveform)
+                    case .failure(let error):
+                        print("Failed to load waveform: \(error.localizedDescription)")
+                        // Show placeholder waveform
+                        self?.addWaveform([])
+                    }
+                }
+            }
+        }
     }
     
     func addStickerPreview(_ image: UIImage) {
@@ -502,33 +536,88 @@ extension TimelineItemView {
 private class WaveformView: UIView {
     
     private let waveform: [Float]
+    private let showLoadingIndicator: Bool
     
     init(waveform: [Float]) {
         self.waveform = waveform
+        self.showLoadingIndicator = waveform.isEmpty
         super.init(frame: .zero)
         backgroundColor = .clear
+        
+        // Add loading indicator for empty waveforms
+        if showLoadingIndicator {
+            setupLoadingIndicator()
+        }
     }
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
+    private func setupLoadingIndicator() {
+        let loadingLabel = UILabel()
+        loadingLabel.text = "Loading waveform..."
+        loadingLabel.textColor = UIColor.white.withAlphaComponent(0.6)
+        loadingLabel.font = UIFont.systemFont(ofSize: 10)
+        loadingLabel.textAlignment = .center
+        loadingLabel.translatesAutoresizingMaskIntoConstraints = true
+        addSubview(loadingLabel)
+        
+        // Center the label
+        loadingLabel.frame = bounds
+        loadingLabel.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    }
+    
     override func draw(_ rect: CGRect) {
+        super.draw(rect)
+        
+        // Don't draw waveform if empty or loading
+        guard !waveform.isEmpty else {
+            return
+        }
+        
         guard let context = UIGraphicsGetCurrentContext() else { return }
         
-        context.setStrokeColor(UIColor.white.cgColor)
-        context.setLineWidth(1.0)
+        // Clear any existing content
+        context.clear(rect)
+        
+        // Set up drawing style
+        context.setStrokeColor(UIColor.white.withAlphaComponent(0.8).cgColor)
+        context.setFillColor(UIColor.white.withAlphaComponent(0.4).cgColor)
+        context.setLineWidth(0.5)
         
         let barWidth = rect.width / CGFloat(waveform.count)
         let centerY = rect.height / 2
+        let maxAmplitude = waveform.max() ?? 1.0
         
-        for (index, amplitude) in waveform.enumerated() {
+        // Normalize waveform for better visualization
+        let normalizedWaveform = waveform.map { $0 / maxAmplitude }
+        
+        // Draw waveform bars
+        for (index, amplitude) in normalizedWaveform.enumerated() {
             let x = CGFloat(index) * barWidth
             let height = CGFloat(amplitude) * rect.height * 0.4
             
+            // Draw filled bar
+            let barRect = CGRect(x: x, y: centerY - height, width: max(barWidth - 0.5, 0.5), height: height * 2)
+            context.addRect(barRect)
+            context.fillPath()
+            
+            // Draw stroke for better definition
             context.move(to: CGPoint(x: x, y: centerY - height))
             context.addLine(to: CGPoint(x: x, y: centerY + height))
             context.strokePath()
+        }
+    }
+    
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        
+        // Update loading label frame if present
+        if showLoadingIndicator {
+            subviews.compactMap { $0 as? UILabel }.forEach { label in
+                label.frame = bounds
+            }
         }
     }
 }

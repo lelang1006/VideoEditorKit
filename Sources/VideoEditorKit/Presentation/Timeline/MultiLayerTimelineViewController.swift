@@ -666,7 +666,6 @@ extension MultiLayerTimelineViewController {
             let audioItem = AudioTimelineItem(
                 trackType: .audio(.replacement),
                 asset: audioReplacement.asset,
-                waveform: [], // Could be enhanced later
                 title: audioReplacement.title ?? "Replacement Audio",
                 volume: volume,
                 isMuted: isMuted,
@@ -681,7 +680,6 @@ extension MultiLayerTimelineViewController {
             let audioItem = AudioTimelineItem(
                 trackType: .audio(.original),
                 asset: asset,
-                waveform: [], // Could be enhanced later
                 title: "Main Audio",
                 volume: volume,
                 isMuted: isMuted,
@@ -736,7 +734,6 @@ extension MultiLayerTimelineViewController {
                         let updatedAudioItem = AudioTimelineItem(
                             trackType: audioItem.trackType,
                             asset: audioItem.asset,
-                            waveform: audioItem.waveform,
                             title: audioItem.title,
                             volume: volume,
                             isMuted: isMuted,

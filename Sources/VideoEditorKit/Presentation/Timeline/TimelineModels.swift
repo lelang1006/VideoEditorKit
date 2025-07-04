@@ -119,7 +119,6 @@ public class AudioTimelineItem: TimelineItem {
     public let trimBehavior: TrimBehavior = .dependent
     
     public let asset: AVAsset?
-    public let waveform: [Float] // Audio waveform data
     public let title: String
     public let volume: Float
     public let isMuted: Bool
@@ -127,17 +126,89 @@ public class AudioTimelineItem: TimelineItem {
     // Relative trim positions (relative to video timeline)
     public var relativeTrimPositions: (start: Double, end: Double)
     
-    public init(trackType: TimelineTrackType, asset: AVAsset?, waveform: [Float], title: String, volume: Float, isMuted: Bool, startTime: CMTime, duration: CMTime, relativeTrimPositions: (start: Double, end: Double) = (0.0, 1.0), id: String? = nil) {
+    // Waveform cache-related properties
+    private var _cachedWaveform: [Float]?
+    private var _waveformLoadingCompletion: ((Result<[Float], Error>) -> Void)?
+    
+    /// Audio waveform data - automatically generated from asset using WaveformCache
+    public var waveform: [Float] {
+        get {
+            // Return cached waveform if available
+            if let cachedWaveform = _cachedWaveform {
+                return cachedWaveform
+            }
+            
+            // Try to get from cache synchronously
+            if let asset = asset,
+               let cachedWaveform = WaveformCache.shared.getCachedWaveform(for: asset) {
+                _cachedWaveform = cachedWaveform
+                return cachedWaveform
+            }
+            
+            // Return empty waveform if asset is not available or not cached yet
+            return []
+        }
+    }
+    
+    public init(trackType: TimelineTrackType, asset: AVAsset?, title: String, volume: Float, isMuted: Bool, startTime: CMTime, duration: CMTime, relativeTrimPositions: (start: Double, end: Double) = (0.0, 1.0), id: String? = nil) {
         self.id = id ?? UUID().uuidString
         self.trackType = trackType
         self.asset = asset
-        self.waveform = waveform
         self.title = title
         self.volume = volume
         self.isMuted = isMuted
         self.startTime = startTime
         self.duration = duration
         self.relativeTrimPositions = relativeTrimPositions
+        
+        // Start loading waveform asynchronously
+        loadWaveformAsync()
+    }
+    
+    /// Legacy initializer for backward compatibility
+    public convenience init(trackType: TimelineTrackType, asset: AVAsset?, waveform: [Float], title: String, volume: Float, isMuted: Bool, startTime: CMTime, duration: CMTime, relativeTrimPositions: (start: Double, end: Double) = (0.0, 1.0), id: String? = nil) {
+        self.init(trackType: trackType, asset: asset, title: title, volume: volume, isMuted: isMuted, startTime: startTime, duration: duration, relativeTrimPositions: relativeTrimPositions, id: id)
+        
+        // Use provided waveform if available
+        if !waveform.isEmpty {
+            self._cachedWaveform = waveform
+        }
+    }
+    
+    /// Asynchronously loads waveform data from the asset
+    private func loadWaveformAsync() {
+        guard let asset = asset else { return }
+        
+        WaveformCache.shared.getWaveform(for: asset) { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let waveform):
+                    self?._cachedWaveform = waveform
+                    self?._waveformLoadingCompletion?(.success(waveform))
+                case .failure(let error):
+                    print("Failed to load waveform: \(error.localizedDescription)")
+                    self?._waveformLoadingCompletion?(.failure(error))
+                }
+                self?._waveformLoadingCompletion = nil
+            }
+        }
+    }
+    
+    /// Gets waveform data asynchronously with completion handler
+    public func getWaveform(completion: @escaping (Result<[Float], Error>) -> Void) {
+        // Return cached waveform if available
+        if let cachedWaveform = _cachedWaveform {
+            completion(.success(cachedWaveform))
+            return
+        }
+        
+        // Store completion handler for when waveform is loaded
+        _waveformLoadingCompletion = completion
+        
+        // Start loading if not already in progress
+        if _waveformLoadingCompletion != nil {
+            loadWaveformAsync()
+        }
     }
     
     /// Calculate absolute time range in original asset based on video trim positions
