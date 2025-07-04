@@ -267,6 +267,22 @@ extension MultiLayerTimelineViewController {
         }
     }
     
+    func selectItem(withID id: String) {
+        print("📱 🔄 MultiLayerTimelineViewController.selectItem called with ID: \(id)")
+        
+        // Find item by ID across all tracks
+        for track in tracks {
+            for item in track.items {
+                if item.id == id {
+                    selectItem(item)
+                    return
+                }
+            }
+        }
+        
+        print("📱 ⚠️ Item with ID \(id) not found in timeline")
+    }
+    
     func setPlayheadPosition(_ time: CMTime) {
         playheadPosition = time
         updatePlayheadPosition()
@@ -503,9 +519,13 @@ extension MultiLayerTimelineViewController {
         
         // React to stickers changes
         store.$stickers
-            .sink { [weak self] _ in
+            .sink { [weak self] stickers in
                 guard let self = self else { return }
-                self.updateTracksFromStore()
+                print("📱 🎯 Stickers binding triggered with \(stickers.count) stickers")
+                // Add a small delay to ensure the store's state is fully updated
+                DispatchQueue.main.async {
+                    self.updateTracksFromStore()
+                }
             }
             .store(in: &cancellables)
         
@@ -710,18 +730,14 @@ extension MultiLayerTimelineViewController {
             newTracks.append(audioTrack)
         }
         
-        // 3. Create sticker track(s)
-        if !store.stickers.isEmpty {
+        // 3. Create individual sticker tracks (one track per sticker for better control)
+        print("📱 🎯 Store has \(store.stickers.count) stickers")
+        for (index, sticker) in store.stickers.enumerated() {
             var stickerTrack = TimelineTrack(type: .sticker)
-            var stickerItems: [TimelineItem] = []
-            
-            for sticker in store.stickers {
-                // sticker is already a StickerTimelineItem, use it directly
-                stickerItems.append(sticker)
-            }
-            
-            stickerTrack.items = stickerItems
+            stickerTrack.items = [sticker] // Each sticker gets its own track
             newTracks.append(stickerTrack)
+            
+            print("📱 🎯 Created individual track for sticker \(index + 1): \(sticker.id)")
         }
         
         // Update tracks (this triggers updateTracksView via didSet)
@@ -832,6 +848,17 @@ extension MultiLayerTimelineViewController {
     private func restoreSelectionByType(itemType: TimelineTrackType) {
         print("📱 🔄 Attempting to restore selection by type: \(itemType.debugDescription)")
         
+        // For stickers, try to find the exact same sticker by ID first
+        if case .sticker = itemType, let selectedItemId = selectedItem?.id {
+            print("📱 🎯 Attempting to restore specific sticker: \(selectedItemId)")
+            if let foundSticker = findItemById(selectedItemId) {
+                print("📱 ✅ Restored specific sticker by ID: \(selectedItemId)")
+                selectedItem = foundSticker
+                selectItem(foundSticker)
+                return
+            }
+        }
+        
         // Find first item of matching type
         for track in tracks {
             for item in track.items {
@@ -871,5 +898,37 @@ extension MultiLayerTimelineViewController {
         }
     }
     
-
+    /// Add a new sticker with its own track for better control
+    public func addStickerItem(_ sticker: StickerTimelineItem) {
+        print("📱 🎯 Adding new sticker to store: \(sticker.id)")
+        print("📱 🎯 Store currently has \(store.stickers.count) stickers")
+        
+        // Add sticker to store - this will trigger updateTracksFromStore via binding
+        store.addSticker(sticker)
+        
+        print("📱 🎯 After adding, store has \(store.stickers.count) stickers")
+        
+        // Auto-select the new sticker after the tracks are updated
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.selectItem(sticker)
+        }
+        
+        delegate?.timeline(self, didAddTrackOfType: .sticker)
+    }
+    
+    /// Remove a specific sticker and its track
+    public func removeStickerItem(_ sticker: StickerTimelineItem) {
+        print("📱 🎯 Removing sticker from store: \(sticker.id)")
+        
+        // Clear selection if this was the selected item
+        if selectedItem?.id == sticker.id {
+            selectedItem = nil
+            selectItem(nil)
+        }
+        
+        // Remove sticker from store - this will trigger updateTracksFromStore via binding
+        store.removeSticker(withId: sticker.id)
+        
+        print("📱 ✅ Removed sticker from store")
+    }
 }

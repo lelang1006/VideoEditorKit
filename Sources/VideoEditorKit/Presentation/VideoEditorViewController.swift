@@ -181,6 +181,17 @@ fileprivate extension VideoEditorViewController {
                 self.updateVideoPlayerStickers(stickers, playerItem: playerItem)
             }
             .store(in: &cancellables)
+        
+        // Setup sticker delegate
+        videoPlayerController.setStickerDelegate(self)
+        
+        // Enable sticker interaction when video is paused
+        videoPlayerController.$isPlaying
+            .map { !$0 } // Enable interaction when NOT playing
+            .sink { [weak self] interactionEnabled in
+                self?.videoPlayerController.enableStickerInteraction(interactionEnabled)
+            }
+            .store(in: &cancellables)
     }
 }
 
@@ -686,5 +697,50 @@ private extension VideoEditorViewController {
         // Apply transform to get actual video dimensions
         let videoSize = naturalSize.applying(transform)
         return CGSize(width: abs(videoSize.width), height: abs(videoSize.height))
+    }
+}
+
+// MARK: - StickerOverlayViewDelegate
+
+extension VideoEditorViewController: StickerOverlayViewDelegate {
+    public func stickerOverlayView(_ overlayView: StickerOverlayView, didUpdateSticker sticker: StickerTimelineItem) {
+        // Update sticker in store
+        store.updateSticker(sticker)
+        
+        // Optional: Provide haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
+    }
+    
+    public func stickerOverlayView(_ overlayView: StickerOverlayView, didSelectSticker sticker: StickerTimelineItem) {
+        // Select corresponding timeline item
+        videoTimelineViewController.selectItem(withID: sticker.id)
+        
+        // Optional: Provide haptic feedback
+        let selectionFeedback = UISelectionFeedbackGenerator()
+        selectionFeedback.selectionChanged()
+    }
+    
+    public func stickerOverlayView(_ overlayView: StickerOverlayView, didDeleteSticker sticker: StickerTimelineItem) {
+        // Remove sticker from store
+        store.removeSticker(withId: sticker.id)
+        
+        // Also remove from timeline (individual track)
+        videoTimelineViewController.removeStickerItem(sticker)
+        
+        // Optional: Provide haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+        
+        // Optional: Show confirmation
+        let alert = UIAlertController(title: "Sticker Deleted", message: nil, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        
+        // Auto-dismiss after 1 second
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            alert.dismiss(animated: true)
+        }
+        
+        present(alert, animated: true)
     }
 }

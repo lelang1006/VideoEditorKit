@@ -19,7 +19,7 @@ extension Array {
 
 // MARK: - Timeline Track Types
 
-public enum TimelineTrackType {
+public enum TimelineTrackType: Equatable {
     case video
     case audio(AudioTrackSubtype)
     case text
@@ -42,7 +42,7 @@ extension TimelineTrackType {
     }
 }
 
-public enum AudioTrackSubtype {
+public enum AudioTrackSubtype: Equatable {
     case original
     case replacement
     case voiceover
@@ -206,9 +206,9 @@ public class StickerTimelineItem: TimelineItem, Equatable {
     public let trimBehavior: TrimBehavior = .dependent
     
     public let image: UIImage
-    public let position: CGPoint
-    public let scale: CGFloat
-    public let rotation: CGFloat
+    public var position: CGPoint
+    public var scale: CGFloat
+    public var rotation: CGFloat
     
     // Relative trim positions (relative to video timeline)
     public var relativeTrimPositions: (start: Double, end: Double)

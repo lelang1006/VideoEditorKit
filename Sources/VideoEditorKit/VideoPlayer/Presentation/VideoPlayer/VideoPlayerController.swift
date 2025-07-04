@@ -35,6 +35,22 @@ public final class VideoPlayerController: UIViewController {
         stickerOverlayView.updateStickers(stickers)
         stickerOverlayView.updateVideoSize(videoSize)
     }
+    
+    public func enableStickerInteraction(_ enabled: Bool) {
+        stickerOverlayView.isInteractionEnabled = enabled
+    }
+    
+    public func selectSticker(withID id: String) {
+        stickerOverlayView.selectSticker(withID: id)
+    }
+    
+    public func deselectAllStickers() {
+        stickerOverlayView.deselectAllStickers()
+    }
+    
+    public func setStickerDelegate(_ delegate: StickerOverlayViewDelegate) {
+        stickerOverlayView.delegate = delegate
+    }
 
     // MARK: Private Properties
 

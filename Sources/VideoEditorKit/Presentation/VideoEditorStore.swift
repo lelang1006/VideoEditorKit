@@ -277,7 +277,10 @@ extension VideoEditorStore {
     // MARK: Sticker Management
     
     func addSticker(_ sticker: StickerTimelineItem) {
+        print("📱 🏪 VideoEditorStore.addSticker called with: \(sticker.id)")
+        print("📱 🏪 Before adding: \(stickers.count) stickers")
         stickers.append(sticker)
+        print("📱 🏪 After adding: \(stickers.count) stickers")
     }
     
     func removeSticker(withId id: String) {
