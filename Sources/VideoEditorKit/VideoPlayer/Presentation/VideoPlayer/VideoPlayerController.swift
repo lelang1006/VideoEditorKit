@@ -25,6 +25,16 @@ public final class VideoPlayerController: UIViewController {
     public var player: AVPlayer {
         store.player
     }
+    
+    // MARK: - Public Sticker Methods
+    
+    public func updateStickers(
+        _ stickers: [StickerTimelineItem],
+        videoSize: CGSize
+    ) {
+        stickerOverlayView.updateStickers(stickers)
+        stickerOverlayView.updateVideoSize(videoSize)
+    }
 
     // MARK: Private Properties
 
@@ -32,6 +42,7 @@ public final class VideoPlayerController: UIViewController {
     private lazy var blurredView: UIView = makeBlurredBiew()
     private lazy var backgroundView: PlayerView = makeBackgroundView()
     private lazy var controlsViewController: ControlsViewController = makeControlsViewController()
+    private lazy var stickerOverlayView: StickerOverlayView = makeStickerOverlayView()
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -113,6 +124,13 @@ fileprivate extension VideoPlayerController {
         store.$playheadProgress
             .assign(to: \.currentTime, weakly: self)
             .store(in: &cancellables)
+        
+        // Sync sticker overlay with video playback time
+        store.$playheadProgress
+            .sink { [weak self] time in
+                self?.stickerOverlayView.updateCurrentTime(time)
+            }
+            .store(in: &cancellables)
     }
 }
 
@@ -136,6 +154,7 @@ fileprivate extension VideoPlayerController {
         }
 
         view.addSubview(playerView)
+        view.addSubview(stickerOverlayView)
 
         add(controlsViewController)
     }
@@ -147,6 +166,7 @@ fileprivate extension VideoPlayerController {
         }
 
         playerView.autoPinEdgesToSuperviewSafeArea()
+        stickerOverlayView.autoPinEdgesToSuperviewSafeArea()
 
         controlsViewController.view.autoPinEdgesToSuperviewEdges()
     }
@@ -178,6 +198,11 @@ fileprivate extension VideoPlayerController {
             isFullscreen: false)
         controller.delegate = self
         return controller
+    }
+    
+    func makeStickerOverlayView() -> StickerOverlayView {
+        let view = StickerOverlayView()
+        return view
     }
 }
 

@@ -172,6 +172,15 @@ fileprivate extension VideoEditorViewController {
                 self.presentVideoControlController(for: videoControl)
             }
             .store(in: &cancellables)
+        
+        // Bind stickers to video player overlay
+        store.$stickers
+            .combineLatest(store.$editedPlayerItem)
+            .sink { [weak self] stickers, playerItem in
+                guard let self = self else { return }
+                self.updateVideoPlayerStickers(stickers, playerItem: playerItem)
+            }
+            .store(in: &cancellables)
     }
 }
 
@@ -652,5 +661,30 @@ extension VideoEditorViewController: MultiLayerTimelineDelegate {
         // You could update the store or show a picker for the new track content:
         // store.addTrack(of: type)
         // or present content picker for this track type
+    }
+}
+
+// MARK: - Private Helper Methods
+    
+private extension VideoEditorViewController {
+    func updateVideoPlayerStickers(_ stickers: [StickerTimelineItem], playerItem: AVPlayerItem) {
+        // Get video size from the player item
+        let videoSize = getVideoSize(from: playerItem)
+        
+        // Update stickers in video player overlay
+        videoPlayerController.updateStickers(stickers, videoSize: videoSize)
+    }
+    
+    func getVideoSize(from playerItem: AVPlayerItem) -> CGSize {
+        guard let track = playerItem.asset.tracks(withMediaType: .video).first else {
+            return CGSize(width: 1920, height: 1080) // Default size
+        }
+        
+        let naturalSize = track.naturalSize
+        let transform = track.preferredTransform
+        
+        // Apply transform to get actual video dimensions
+        let videoSize = naturalSize.applying(transform)
+        return CGSize(width: abs(videoSize.width), height: abs(videoSize.height))
     }
 }

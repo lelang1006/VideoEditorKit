@@ -2,25 +2,22 @@
 //  StickerOverlayView.swift
 //  VideoEditorKit
 //
-//  Created by VideoEditorKit on 2025-01-28.
+//  Created by VideoEditorKit on 2025-07-04.
 //
 
 import UIKit
 import AVFoundation
 import Combine
 
-/// Overlay view to display stickers on top of video player
+/// Overlay view to display stickers on top of video player during preview
 final class StickerOverlayView: UIView {
     
     // MARK: - Properties
     
+    private var stickerViews: [String: UIImageView] = [:]
     private var stickers: [StickerTimelineItem] = []
-    private var videoDuration: CMTime = .zero
-    private var videoSize: CGSize = .zero
     private var currentTime: CMTime = .zero
-    
-    private var stickerViews: [UIView] = []
-    private var cancellables = Set<AnyCancellable>()
+    private var videoSize: CGSize = .zero
     
     // MARK: - Initialization
     
@@ -43,104 +40,83 @@ final class StickerOverlayView: UIView {
     
     // MARK: - Public Methods
     
-    func configure(
-        stickers: [StickerTimelineItem],
-        videoDuration: CMTime,
-        videoSize: CGSize
-    ) {
+    func updateStickers(_ stickers: [StickerTimelineItem]) {
         self.stickers = stickers
-        self.videoDuration = videoDuration
-        self.videoSize = videoSize
-        
-        setupStickerViews()
-        updateStickerVisibility()
+        updateVisibleStickers()
     }
     
     func updateCurrentTime(_ time: CMTime) {
         currentTime = time
-        updateStickerVisibility()
+        updateVisibleStickers()
+    }
+    
+    func updateVideoSize(_ size: CGSize) {
+        videoSize = size
+        updateStickerPositions()
     }
     
     // MARK: - Private Methods
     
-    private func setupStickerViews() {
-        // Remove existing sticker views
-        stickerViews.forEach { $0.removeFromSuperview() }
-        stickerViews.removeAll()
+    private func updateVisibleStickers() {
+        // Hide all stickers first
+        stickerViews.values.forEach { $0.isHidden = true }
         
-        // Create new sticker views
+        // Show stickers that should be visible at current time
         for sticker in stickers {
-            let stickerView = createStickerView(for: sticker)
-            addSubview(stickerView)
-            stickerViews.append(stickerView)
-        }
-    }
-    
-    private func createStickerView(for sticker: StickerTimelineItem) -> UIView {
-        let containerView = UIView()
-        containerView.backgroundColor = .clear
-        
-        let imageView = UIImageView()
-        imageView.image = sticker.image
-        imageView.contentMode = .scaleAspectFit
-        imageView.backgroundColor = .clear
-        
-        containerView.addSubview(imageView)
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            imageView.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
-            imageView.centerYAnchor.constraint(equalTo: containerView.centerYAnchor),
-            imageView.widthAnchor.constraint(equalTo: containerView.widthAnchor),
-            imageView.heightAnchor.constraint(equalTo: containerView.heightAnchor)
-        ])
-        
-        return containerView
-    }
-    
-    private func updateStickerVisibility() {
-        let currentTimeSeconds = currentTime.seconds
-        
-        for (index, sticker) in stickers.enumerated() {
-            guard index < stickerViews.count else { continue }
+            let endTime = CMTimeAdd(sticker.startTime, sticker.duration)
+            let isVisible = currentTime >= sticker.startTime && currentTime <= endTime
             
-            let stickerView = stickerViews[index]
-            let startTime = sticker.startTime.seconds
-            let endTime = (sticker.startTime + sticker.duration).seconds
-            
-            // Show sticker if current time is within its duration
-            let shouldShow = currentTimeSeconds >= startTime && currentTimeSeconds <= endTime
-            stickerView.isHidden = !shouldShow
-            
-            if shouldShow {
-                updateStickerTransform(stickerView, for: sticker)
+            if isVisible {
+                showSticker(sticker)
             }
         }
     }
     
-    private func updateStickerTransform(_ view: UIView, for sticker: StickerTimelineItem) {
-        // Calculate position relative to video bounds
-        let videoRect = calculateVideoRect()
+    private func showSticker(_ sticker: StickerTimelineItem) {
+        let imageView: UIImageView
         
-        // Convert normalized position to actual position
+        if let existingView = stickerViews[sticker.id] {
+            imageView = existingView
+        } else {
+            imageView = UIImageView(image: sticker.image)
+            imageView.contentMode = .scaleAspectFit
+            imageView.backgroundColor = .clear
+            addSubview(imageView)
+            stickerViews[sticker.id] = imageView
+        }
+        
+        // Position and transform the sticker
+        updateStickerView(imageView, with: sticker)
+        imageView.isHidden = false
+    }
+    
+    private func updateStickerView(_ imageView: UIImageView, with sticker: StickerTimelineItem) {
+        guard bounds.size != .zero else { return }
+        
+        // Calculate video display rect (considering aspect ratio)
+        let videoRect = calculateVideoDisplayRect()
+        
+        // Convert normalized position (0-1) to actual position within video rect
         let x = videoRect.origin.x + (sticker.position.x * videoRect.width)
         let y = videoRect.origin.y + (sticker.position.y * videoRect.height)
         
-        // Set frame based on scale
-        let baseSize: CGFloat = 60 // Base size for stickers
-        let scaledSize = baseSize * sticker.scale
+        // Calculate size based on scale
+        let baseSize: CGFloat = 80 // Default sticker size
+        let size = baseSize * sticker.scale
         
-        view.frame = CGRect(
-            x: x - scaledSize / 2,
-            y: y - scaledSize / 2,
-            width: scaledSize,
-            height: scaledSize
+        // Set frame
+        imageView.frame = CGRect(
+            x: x - size/2,
+            y: y - size/2,
+            width: size,
+            height: size
         )
         
         // Apply rotation
-        view.transform = CGAffineTransform(rotationAngle: sticker.rotation)
+        imageView.transform = CGAffineTransform(rotationAngle: sticker.rotation)
     }
     
-    private func calculateVideoRect() -> CGRect {
+    private func calculateVideoDisplayRect() -> CGRect {
         guard videoSize.width > 0 && videoSize.height > 0 else {
             return bounds
         }
@@ -152,12 +128,12 @@ final class StickerOverlayView: UIView {
         let videoRect: CGRect
         
         if videoAspectRatio > containerAspectRatio {
-            // Video is wider than container
+            // Video is wider than container (letterboxing on top/bottom)
             let height = containerSize.width / videoAspectRatio
             let y = (containerSize.height - height) / 2
             videoRect = CGRect(x: 0, y: y, width: containerSize.width, height: height)
         } else {
-            // Video is taller than container
+            // Video is taller than container (pillarboxing on left/right)
             let width = containerSize.height * videoAspectRatio
             let x = (containerSize.width - width) / 2
             videoRect = CGRect(x: x, y: 0, width: width, height: containerSize.height)
@@ -166,9 +142,17 @@ final class StickerOverlayView: UIView {
         return videoRect
     }
     
+    private func updateStickerPositions() {
+        for (id, imageView) in stickerViews {
+            if let sticker = stickers.first(where: { $0.id == id }) {
+                updateStickerView(imageView, with: sticker)
+            }
+        }
+    }
+    
     override func layoutSubviews() {
         super.layoutSubviews()
         // Update sticker positions when bounds change
-        updateStickerVisibility()
+        updateStickerPositions()
     }
 }
