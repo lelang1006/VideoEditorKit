@@ -8,6 +8,7 @@
 import AVFoundation
 import Combine
 import CoreImage
+import UIKit
 
 enum VideoEditorError: Error {
     case unknown
@@ -72,12 +73,22 @@ public final class VideoEditor: VideoEditorProtocol {
                 edit: edit,
                 videoCompositionTrack: videoCompositionTrack,
                 videoTrack: videoTrack,
-                duration: composition.duration
+                duration: composition.duration,
+                forExport: false
+            )
+
+            let exportVideoComposition = self.makeVideoComposition(
+                edit: edit,
+                videoCompositionTrack: videoCompositionTrack,
+                videoTrack: videoTrack,
+                duration: composition.duration,
+                forExport: true
             )
 
             let result = VideoEditResult(
                 asset: composition,
-                videoComposition: videoComposition
+                videoComposition: videoComposition,
+                exportVideoComposition: exportVideoComposition
             )
 
             promise(.success(result))
@@ -207,7 +218,8 @@ fileprivate extension VideoEditor {
         edit: VideoEdit,
         videoCompositionTrack: AVCompositionTrack,
         videoTrack: AVAssetTrack,
-        duration: CMTime
+        duration: CMTime,
+        forExport: Bool = false
     ) -> AVVideoComposition {
         let naturalSize = videoTrack.naturalSize.applying(videoTrack.preferredTransform)
         let renderSize = makeRenderSize(naturalSize: naturalSize, croppingPreset: edit.croppingPreset)
@@ -244,6 +256,12 @@ fileprivate extension VideoEditor {
             videoComposition.instructions = [filterInstruction]
         } else {
             videoComposition.instructions = [instruction]
+        }
+
+        // Apply stickers only for export composition
+        // AVVideoCompositionCoreAnimationTool cannot be used with AVPlayerItem
+        if forExport && !edit.stickers.isEmpty {
+            self.applyStickers(edit.stickers, to: videoComposition, renderSize: renderSize)
         }
 
         return videoComposition
@@ -285,5 +303,90 @@ fileprivate extension VideoEditor {
         }
 
         return renderSize
+    }
+    
+    func applyStickers(_ stickers: [StickerTimelineItem], to videoComposition: AVMutableVideoComposition, renderSize: CGSize) {
+        // Create parent layer for video + stickers
+        let parentLayer = CALayer()
+        let videoLayer = CALayer()
+        
+        // Setup layers
+        parentLayer.frame = CGRect(origin: .zero, size: renderSize)
+        videoLayer.frame = CGRect(origin: .zero, size: renderSize)
+        parentLayer.addSublayer(videoLayer)
+        
+        // Add each sticker as a CALayer
+        for sticker in stickers {
+            let stickerLayer = createStickerLayer(from: sticker, renderSize: renderSize)
+            parentLayer.addSublayer(stickerLayer)
+        }
+        
+        // Apply animation tool to composition
+        videoComposition.animationTool = AVVideoCompositionCoreAnimationTool(
+            postProcessingAsVideoLayer: videoLayer,
+            in: parentLayer
+        )
+    }
+    
+    func createStickerLayer(from sticker: StickerTimelineItem, renderSize: CGSize) -> CALayer {
+        let layer = CALayer()
+        
+        // Use the actual sticker image
+        layer.contents = sticker.image.cgImage
+        
+        // Calculate size based on scale
+        let baseSize: CGFloat = min(renderSize.width, renderSize.height) * 0.1 // 10% of smaller dimension
+        let stickerSize = baseSize * sticker.scale
+        
+        // Calculate position based on position property
+        let xPosition = renderSize.width * sticker.position.x - stickerSize / 2
+        let yPosition = renderSize.height * (1.0 - sticker.position.y) - stickerSize / 2 // Flip Y coordinate
+        
+        layer.frame = CGRect(
+            x: xPosition,
+            y: yPosition,
+            width: stickerSize,
+            height: stickerSize
+        )
+        
+        // Apply rotation
+        layer.transform = CATransform3DMakeRotation(sticker.rotation, 0, 0, 1)
+        
+        // Apply default opacity
+        layer.opacity = 1.0
+        
+        // Set timing animations
+        addTimingAnimations(to: layer, sticker: sticker)
+        
+        return layer
+    }
+    
+    func addTimingAnimations(to layer: CALayer, sticker: StickerTimelineItem) {
+        let startTime = sticker.startTime
+        let endTime = CMTimeAdd(sticker.startTime, sticker.duration)
+        
+        // Initially hidden
+        layer.opacity = 0
+        
+        // Show animation at start time
+        let showAnimation = CABasicAnimation(keyPath: "opacity")
+        showAnimation.fromValue = 0
+        showAnimation.toValue = 1.0
+        showAnimation.duration = 0.1
+        showAnimation.beginTime = startTime.seconds
+        showAnimation.fillMode = .forwards
+        showAnimation.isRemovedOnCompletion = false
+        
+        // Hide animation at end time
+        let hideAnimation = CABasicAnimation(keyPath: "opacity")
+        hideAnimation.fromValue = 1.0
+        hideAnimation.toValue = 0
+        hideAnimation.duration = 0.1
+        hideAnimation.beginTime = endTime.seconds
+        hideAnimation.fillMode = .forwards
+        hideAnimation.isRemovedOnCompletion = false
+        
+        layer.add(showAnimation, forKey: "stickerShow")
+        layer.add(hideAnimation, forKey: "stickerHide")
     }
 }

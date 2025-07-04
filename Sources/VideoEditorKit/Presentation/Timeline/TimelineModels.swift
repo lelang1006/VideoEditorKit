@@ -195,7 +195,7 @@ public class TextTimelineItem: TimelineItem {
     }
 }
 
-public class StickerTimelineItem: TimelineItem {
+public class StickerTimelineItem: TimelineItem, Equatable {
     public let id: String
     public var startTime: CMTime
     public var duration: CMTime
@@ -234,6 +234,19 @@ public class StickerTimelineItem: TimelineItem {
         let stickerEnd = videoStart + (videoDuration * relativeTrimPositions.end)
         
         return (stickerStart, stickerEnd)
+    }
+    
+    // MARK: - Equatable
+    
+    public static func == (lhs: StickerTimelineItem, rhs: StickerTimelineItem) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.startTime == rhs.startTime &&
+               lhs.duration == rhs.duration &&
+               lhs.position == rhs.position &&
+               lhs.scale == rhs.scale &&
+               lhs.rotation == rhs.rotation &&
+               lhs.relativeTrimPositions.start == rhs.relativeTrimPositions.start &&
+               lhs.relativeTrimPositions.end == rhs.relativeTrimPositions.end
     }
 }
 

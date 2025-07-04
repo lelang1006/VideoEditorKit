@@ -240,10 +240,39 @@ extension TimelineItemView {
     }
     
     func addStickerPreview(_ image: UIImage) {
-        let imageView = UIImageView(image: image)
-        imageView.contentMode = .scaleAspectFit
-        imageView.translatesAutoresizingMaskIntoConstraints = true
-        contentView.addSubview(imageView)
+        // Clear existing content
+        contentView.subviews.forEach { $0.removeFromSuperview() }
+        
+        // Create container for better organization
+        let containerView = UIView()
+        containerView.translatesAutoresizingMaskIntoConstraints = true
+        containerView.backgroundColor = .clear
+        contentView.addSubview(containerView)
+        
+        // Add icon image view
+        let iconImageView = UIImageView()
+        iconImageView.image = UIImage(systemName: "star.fill")
+        iconImageView.contentMode = .scaleAspectFit
+        iconImageView.tintColor = .white
+        iconImageView.translatesAutoresizingMaskIntoConstraints = true
+        containerView.addSubview(iconImageView)
+        
+        // Add preview image view
+        let previewImageView = UIImageView(image: image)
+        previewImageView.contentMode = .scaleAspectFit
+        previewImageView.translatesAutoresizingMaskIntoConstraints = true
+        previewImageView.layer.cornerRadius = 4
+        previewImageView.clipsToBounds = true
+        containerView.addSubview(previewImageView)
+        
+        // Add label for sticker identifier
+        let stickerLabel = UILabel()
+        stickerLabel.text = "Sticker"
+        stickerLabel.font = UIFont.systemFont(ofSize: 10, weight: .medium)
+        stickerLabel.textColor = .white
+        stickerLabel.textAlignment = .center
+        stickerLabel.translatesAutoresizingMaskIntoConstraints = true
+        containerView.addSubview(stickerLabel)
         
         // Layout using frames in layoutSubviews
         setNeedsLayout()
@@ -300,15 +329,56 @@ extension TimelineItemView {
                 waveformView.frame = contentView.bounds
             }
         case .sticker:
-            // Layout sticker preview
-            if let imageView = contentView.subviews.first(where: { $0 is UIImageView }) {
-                let size = CGSize(width: 40, height: 40)
-                imageView.frame = CGRect(
-                    x: (contentView.bounds.width - size.width) / 2,
-                    y: (contentView.bounds.height - size.height) / 2,
-                    width: size.width,
-                    height: size.height
-                )
+            // Layout sticker preview with enhanced UI
+            if let containerView = contentView.subviews.first {
+                containerView.frame = contentView.bounds
+                
+                let bounds = containerView.bounds
+                let iconSize: CGFloat = 16
+                let previewSize: CGFloat = min(bounds.height - 20, 30)
+                let labelHeight: CGFloat = 12
+                
+                // Layout icon (left side) - icon uses system image
+                if let iconImageView = containerView.subviews.first(where: { 
+                    if let imageView = $0 as? UIImageView,
+                       let image = imageView.image {
+                        return image.isSymbolImage
+                    }
+                    return false
+                }) {
+                    iconImageView.frame = CGRect(
+                        x: 8,
+                        y: (bounds.height - iconSize) / 2,
+                        width: iconSize,
+                        height: iconSize
+                    )
+                }
+                
+                // Layout preview image (center) - preview uses regular image
+                if let previewImageView = containerView.subviews.first(where: { 
+                    if let imageView = $0 as? UIImageView,
+                       let image = imageView.image {
+                        return !image.isSymbolImage
+                    }
+                    return false
+                }) {
+                    previewImageView.frame = CGRect(
+                        x: (bounds.width - previewSize) / 2,
+                        y: 4,
+                        width: previewSize,
+                        height: previewSize
+                    )
+                }
+                
+                // Layout label (bottom)
+                if let label = containerView.subviews.first(where: { $0 is UILabel }) {
+                    label.frame = CGRect(
+                        x: 4,
+                        y: bounds.height - labelHeight - 2,
+                        width: bounds.width - 8,
+                        height: labelHeight
+                    )
+                }
             }
         case .text:
             // Text items might not need special layout

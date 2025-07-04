@@ -29,6 +29,8 @@ final class VideoControlCellViewModel: NSObject {
             return "Filter"
         case .audio:
             return "Audio"
+        case .sticker:
+            return "Stickers"
         }
     }
 
@@ -44,6 +46,8 @@ final class VideoControlCellViewModel: NSObject {
             return "VideoControls/Filter"  // Không có 's' ở cuối
         case .audio:
             return "VideoControls/Audio"
+        case .sticker:
+            return "VideoControls/Sticker"
         }
     }
 }

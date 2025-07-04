@@ -48,6 +48,12 @@ public struct TimelineTheme {
     public let textItemColor: UIColor
     public let stickerItemColor: UIColor
     
+    // Sticker specific colors
+    public let stickerBackgroundColor: UIColor
+    public let selectedStickerBackgroundColor: UIColor
+    public let stickerIconColor: UIColor
+    public let stickerTextColor: UIColor
+    
     // Shadow & Border
     public let shadowColor: UIColor
     public let borderColor: UIColor
@@ -82,6 +88,12 @@ public struct TimelineTheme {
         textItemColor: UIColor.systemOrange.withAlphaComponent(0.7),
         stickerItemColor: UIColor.systemPurple.withAlphaComponent(0.7),
         
+        // Sticker specific colors
+        stickerBackgroundColor: UIColor.systemPurple.withAlphaComponent(0.7),
+        selectedStickerBackgroundColor: UIColor.systemPurple,
+        stickerIconColor: UIColor.white,
+        stickerTextColor: UIColor.white,
+        
         // Shadow & Border
         shadowColor: UIColor.black.withAlphaComponent(0.2),
         borderColor: UIColor.systemGray4,
@@ -114,6 +126,12 @@ public struct TimelineTheme {
         audioItemColor: UIColor.systemGreen.withAlphaComponent(0.8),
         textItemColor: UIColor.systemOrange.withAlphaComponent(0.8),
         stickerItemColor: UIColor.systemPurple.withAlphaComponent(0.8),
+        
+        // Sticker specific colors
+        stickerBackgroundColor: UIColor.systemPurple.withAlphaComponent(0.8),
+        selectedStickerBackgroundColor: UIColor.systemPurple,
+        stickerIconColor: UIColor.white,
+        stickerTextColor: UIColor.white,
         
         // Shadow & Border
         shadowColor: UIColor.black.withAlphaComponent(0.4),

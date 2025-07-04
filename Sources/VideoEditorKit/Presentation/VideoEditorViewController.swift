@@ -424,6 +424,8 @@ fileprivate extension VideoEditorViewController {
                 volume: store.volume,
                 isMuted: store.isMuted
             )
+        case .sticker:
+            return viewFactory.makeStickerControlViewController(stickers: store.stickers)
         }
     }
     
@@ -480,6 +482,13 @@ fileprivate extension VideoEditorViewController {
                 audioController.$isMuted
                     .dropFirst(1)
                     .assign(to: \.isMuted, weakly: store)
+                    .store(in: &cancellables)
+            }
+        case .sticker:
+            if let stickerController = controller as? StickerControlViewController {
+                stickerController.$selectedStickers
+                    .dropFirst(1)
+                    .assign(to: \.stickers, weakly: store)
                     .store(in: &cancellables)
             }
         }

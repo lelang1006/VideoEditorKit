@@ -16,6 +16,7 @@ public struct VideoEdit {
     public var audioReplacement: AudioReplacement?
     public var isMuted: Bool = false
     public var volume: Float = 1.0
+    public var stickers: [StickerTimelineItem] = []
 
     public init() {}
 }

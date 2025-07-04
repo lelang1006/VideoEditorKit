@@ -501,6 +501,14 @@ extension MultiLayerTimelineViewController {
             }
             .store(in: &cancellables)
         
+        // React to stickers changes
+        store.$stickers
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                self.updateTracksFromStore()
+            }
+            .store(in: &cancellables)
+        
         // MARK: - Playhead Position Bindings
         
         store.$playheadProgress
@@ -700,6 +708,20 @@ extension MultiLayerTimelineViewController {
             )
             audioTrack.items = [audioItem]
             newTracks.append(audioTrack)
+        }
+        
+        // 3. Create sticker track(s)
+        if !store.stickers.isEmpty {
+            var stickerTrack = TimelineTrack(type: .sticker)
+            var stickerItems: [TimelineItem] = []
+            
+            for sticker in store.stickers {
+                // sticker is already a StickerTimelineItem, use it directly
+                stickerItems.append(sticker)
+            }
+            
+            stickerTrack.items = stickerItems
+            newTracks.append(stickerTrack)
         }
         
         // Update tracks (this triggers updateTracksView via didSet)

@@ -20,6 +20,7 @@ extension VideoEdit {
             edit.audioReplacement = previousEdit.audioReplacement
             edit.volume = previousEdit.volume
             edit.isMuted = previousEdit.isMuted
+            edit.stickers = previousEdit.stickers
             return edit
         }
     )
@@ -35,6 +36,7 @@ extension VideoEdit {
             edit.audioReplacement = previousEdit.audioReplacement
             edit.volume = previousEdit.volume
             edit.isMuted = previousEdit.isMuted
+            edit.stickers = previousEdit.stickers
             return edit
         }
     )
@@ -50,6 +52,7 @@ extension VideoEdit {
             edit.audioReplacement = previousEdit.audioReplacement
             edit.volume = previousEdit.volume
             edit.isMuted = previousEdit.isMuted
+            edit.stickers = previousEdit.stickers
             return edit
         }
     )
@@ -65,6 +68,7 @@ extension VideoEdit {
             edit.audioReplacement = previousEdit.audioReplacement
             edit.volume = previousEdit.volume
             edit.isMuted = previousEdit.isMuted
+            edit.stickers = previousEdit.stickers
             return edit
         }
     )
@@ -80,6 +84,7 @@ extension VideoEdit {
             edit.audioReplacement = audioReplacement
             edit.volume = previousEdit.volume
             edit.isMuted = previousEdit.isMuted
+            edit.stickers = previousEdit.stickers
             return edit
         }
     )
@@ -95,6 +100,7 @@ extension VideoEdit {
             edit.audioReplacement = previousEdit.audioReplacement
             edit.volume = volume
             edit.isMuted = previousEdit.isMuted
+            edit.stickers = previousEdit.stickers
             return edit
         }
     )
@@ -110,6 +116,23 @@ extension VideoEdit {
             edit.audioReplacement = previousEdit.audioReplacement
             edit.volume = previousEdit.volume
             edit.isMuted = isMuted
+            edit.stickers = previousEdit.stickers
+            return edit
+        }
+    )
+    
+    static let stickers = Lens<VideoEdit, [StickerTimelineItem]>(
+        from: { $0.stickers },
+        to: { stickers, previousEdit in
+            var edit = VideoEdit()
+            edit.croppingPreset = previousEdit.croppingPreset
+            edit.speedRate = previousEdit.speedRate
+            edit.trimPositions = previousEdit.trimPositions
+            edit.filter = previousEdit.filter
+            edit.audioReplacement = previousEdit.audioReplacement
+            edit.volume = previousEdit.volume
+            edit.isMuted = previousEdit.isMuted
+            edit.stickers = stickers
             return edit
         }
     )

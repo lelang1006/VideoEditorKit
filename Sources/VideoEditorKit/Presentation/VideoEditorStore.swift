@@ -44,6 +44,9 @@ public final class VideoEditorStore {
     @Published var volume: Float = 1.0
     @Published var isMuted: Bool = false
 
+    // Sticker properties
+    @Published var stickers: [StickerTimelineItem] = []
+
     @Published var videoEdit: VideoEdit
 
     // MARK: Private Properties
@@ -69,6 +72,9 @@ public final class VideoEditorStore {
         self.audioReplacement = self.videoEdit.audioReplacement
         self.volume = self.videoEdit.volume
         self.isMuted = self.videoEdit.isMuted
+        
+        // Initialize stickers from VideoEdit
+        self.stickers = self.videoEdit.stickers
 
         setupBindings()
     }
@@ -90,6 +96,9 @@ public final class VideoEditorStore {
         self.audioReplacement = self.videoEdit.audioReplacement
         self.volume = self.videoEdit.volume
         self.isMuted = self.videoEdit.isMuted
+        
+        // Initialize stickers from VideoEdit
+        self.stickers = self.videoEdit.stickers
 
         setupBindings()
     }
@@ -206,6 +215,19 @@ fileprivate extension VideoEditorStore {
             .assign(to: \.videoEdit, weakly: self)
             .store(in: &cancellables)
 
+        $stickers
+            .dropFirst(1)
+            .filter { [weak self] stickers in
+                guard let self = self else { return false }
+                return stickers != self.videoEdit.stickers
+            }
+            .compactMap { [weak self] stickers in
+                guard let self = self else { return nil }
+                return VideoEdit.stickers.to(stickers, self.videoEdit)
+            }
+            .assign(to: \.videoEdit, weakly: self)
+            .store(in: &cancellables)
+
     }
 }
 
@@ -250,6 +272,22 @@ extension VideoEditorStore {
         editor.apply(edit: videoEdit, to: originalAsset)
             .flatMap { $0.export(to: url) }
             .eraseToAnyPublisher()
+    }
+    
+    // MARK: Sticker Management
+    
+    func addSticker(_ sticker: StickerTimelineItem) {
+        stickers.append(sticker)
+    }
+    
+    func removeSticker(withId id: String) {
+        stickers.removeAll { $0.id == id }
+    }
+    
+    func updateSticker(_ sticker: StickerTimelineItem) {
+        if let index = stickers.firstIndex(where: { $0.id == sticker.id }) {
+            stickers[index] = sticker
+        }
     }
 }
 

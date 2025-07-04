@@ -43,9 +43,9 @@ fileprivate extension ViewController {
     }
 
     func setupView() {
-        add(originalVideoPlayer)
+        addController(originalVideoPlayer)
         view.addSubview(editButton)
-        add(editedVideoPlayer)
+        addController(editedVideoPlayer)
     }
 
     func setupConstraints() {
@@ -123,7 +123,7 @@ fileprivate extension ViewController {
 
 
 fileprivate extension UIViewController {
-    func add(_ controller: UIViewController) {
+    func addController(_ controller: UIViewController) {
         addChild(controller)
         view.addSubview(controller.view)
         controller.didMove(toParent: self)

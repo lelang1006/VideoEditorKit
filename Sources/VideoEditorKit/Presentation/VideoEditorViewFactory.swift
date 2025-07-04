@@ -17,6 +17,7 @@ protocol VideoEditorViewFactoryProtocol {
     func makeFilterVideoControlViewController(selectedFilter: VideoFilter?, thumbnail: UIImage?, videoId: String?) -> FilterVideoControlViewController
     func makeAudioControlViewController(audioReplacement: AudioReplacement?, volume: Float, isMuted: Bool) -> AudioControlViewController
     func makeTrimVideoControlViewController(asset: AVAsset, trimPositions: (Double, Double)) -> TrimVideoControlViewController
+    func makeStickerControlViewController(stickers: [StickerTimelineItem]) -> StickerControlViewController
 }
 
 // Chỉ factory class cần public để demo app sử dụng
@@ -56,5 +57,9 @@ public final class VideoEditorViewFactory: VideoEditorViewFactoryProtocol {
     
     func makeAudioControlViewController(audioReplacement: AudioReplacement?, volume: Float, isMuted: Bool) -> AudioControlViewController {
         AudioControlViewController(audioReplacement: audioReplacement, volume: volume, isMuted: isMuted)
+    }
+    
+    func makeStickerControlViewController(stickers: [StickerTimelineItem]) -> StickerControlViewController {
+        StickerControlViewController(stickers: stickers)
     }
 }
