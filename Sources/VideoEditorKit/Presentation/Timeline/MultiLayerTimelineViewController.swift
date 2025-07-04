@@ -26,7 +26,16 @@ final class MultiLayerTimelineViewController: UIViewController {
     @Published var seekerValue: Double = 0.0
     
     // Flag to prevent auto-scrolling during trim operations
-    var isTrimInProgress: Bool = false
+    var isTrimInProgress: Bool = false {
+        didSet {
+            // Disable/enable scroll based on trim state
+            if isTrimInProgress {
+                scrollHandler?.disableScroll()
+            } else {
+                scrollHandler?.enableScroll()
+            }
+        }
+    }
     
     // Flag to prevent unintended deselection during layout operations
     var isLayoutInProgress: Bool = false
@@ -38,6 +47,9 @@ final class MultiLayerTimelineViewController: UIViewController {
     var currentGestureState: GestureState = .none
     
     // MARK: - Properties
+    
+    /// Scroll handler for managing scroll behavior
+    private var scrollHandler: TimelineScrollHandler?
     
     weak var delegate: MultiLayerTimelineDelegate?
     var tracks: [TimelineTrack] = [] {
@@ -87,6 +99,10 @@ final class MultiLayerTimelineViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        // Initialize scroll handler FIRST
+        scrollHandler = TimelineScrollHandler(timelineViewController: self)
+        
         setupUI()
         setupBindings()
         setupCentralizedGestures() // Setup gesture management
@@ -350,6 +366,9 @@ extension MultiLayerTimelineViewController {
         // Set scroll view content size
         scrollView.contentSize = CGSize(width: contentWidth, height: contentHeight)
         
+        // Configure directional scrolling after content size update
+        scrollHandler?.forceDirectionalScrolling(for: scrollView)
+        
         // Manually set content view frame to ensure it matches the content size
         // This overrides any AutoLayout constraints that might limit the width
         contentView.frame = CGRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
@@ -384,24 +403,7 @@ extension MultiLayerTimelineViewController {
     }
     
     func updatePlayheadPosition() {
-        updateCarretLayerFrame()
-        
-        // Calculate scroll position to center current time under the playhead
-        let currentTime = store.playheadProgress
-        
-        if currentTime.seconds >= 0 {
-            // Convert current time to pixels
-            let currentTimePixels = CGFloat(currentTime.seconds) * configuration.pixelsPerSecond
-            // Calculate offset to center this time position under the fixed playhead
-            let centerOffset = currentTimePixels - scrollView.contentInset.left
-            let point = CGPoint(x: centerOffset, y: 0)
-            
-            // Update main timeline scroll
-            scrollView.setContentOffset(point, animated: false)
-            
-            // Sync time ruler scroll position (both have same contentInset now)
-            timeRulerView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: 0))
-        }
+        scrollHandler?.updatePlayheadPosition()
     }
     
     func updateTimeRuler() {
@@ -426,16 +428,7 @@ extension MultiLayerTimelineViewController {
     }
     
     func updateScrollViewContentOffset(fractionCompleted: Double) {
-        let maxDuration = tracks.flatMap { $0.items }.map { $0.startTime + $0.duration }.max() ?? CMTime.zero
-        if maxDuration.seconds > 0 {
-            let targetTime = maxDuration.seconds * fractionCompleted
-            let targetPixels = CGFloat(targetTime) * configuration.pixelsPerSecond
-            let centerOffset = targetPixels - scrollView.contentInset.left
-            let point = CGPoint(x: centerOffset, y: 0)
-            
-            scrollView.setContentOffset(point, animated: false)
-            timeRulerView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: 0))
-        }
+        scrollHandler?.updateScrollViewContentOffset(fractionCompleted: fractionCompleted)
     }
 }
 
@@ -455,6 +448,14 @@ extension MultiLayerTimelineViewController {
         view.layer.addSublayer(carretLayer)
         
         setupConstraints()
+        
+        // Configure scroll handler after UI setup
+        if let scrollHandler = scrollHandler {
+            scrollView.delegate = scrollHandler
+            scrollHandler.configureDirectionalScrolling(for: scrollView)
+            // Configure directional scrolling to prevent diagonal movement
+            scrollHandler.forceDirectionalScrolling(for: scrollView)
+        }
         
         // Listen for theme changes
         NotificationCenter.default.addObserver(
@@ -560,7 +561,8 @@ extension MultiLayerTimelineViewController {
         let scrollView = UIScrollView()
         scrollView.showsVerticalScrollIndicator = false
         scrollView.showsHorizontalScrollIndicator = false
-        scrollView.delegate = self
+        // Delegate will be set later after scroll handler is initialized
+        
         return scrollView
     }
     
@@ -592,46 +594,6 @@ extension MultiLayerTimelineViewController {
         stackView.alignment = .fill
         stackView.distribution = .fill
         return stackView
-    }
-}
-
-// MARK: - UIScrollViewDelegate
-
-extension MultiLayerTimelineViewController: UIScrollViewDelegate {
-    
-    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
-        isSeeking = true
-    }
-
-    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
-        isSeeking = false
-    }
-
-    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-        if !decelerate {
-            isSeeking = false
-        }
-    }
-    
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        // Update time ruler scroll position to sync with timeline
-        timeRulerView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: 0))
-        
-        // Calculate current time based on scroll position
-        if isSeeking {
-            // Convert scroll position back to time
-            let scrollOffsetWithInset = scrollView.contentOffset.x + scrollView.contentInset.left
-            let timeSeconds = Double(scrollOffsetWithInset) / Double(configuration.pixelsPerSecond)
-            let newTime = CMTime(seconds: max(timeSeconds, 0), preferredTimescale: configuration.timeScale)
-            playheadPosition = newTime
-        }
-        
-        // Update seeker value for store integration
-        let maxDuration = tracks.flatMap { $0.items }.map { $0.startTime + $0.duration }.max() ?? CMTime.zero
-        if maxDuration.seconds > 0 {
-            let currentTimeSeconds = Double(scrollView.contentOffset.x + scrollView.contentInset.left) / Double(configuration.pixelsPerSecond)
-            seekerValue = currentTimeSeconds / maxDuration.seconds
-        }
     }
 }
 
@@ -932,3 +894,5 @@ extension MultiLayerTimelineViewController {
         print("📱 ✅ Removed sticker from store")
     }
 }
+
+
