@@ -202,7 +202,7 @@ extension TrackHeaderView: TimelineThemeAware {
     
     public func updateTheme() {
         let theme = TimelineTheme.current
-        backgroundColor = theme.trackHeaderBackgroundColor
+        backgroundColor = .clear // Track header background is transparent  
         // No title label to update since it's hidden
     }
 }
@@ -212,9 +212,6 @@ extension TrackHeaderView: TimelineThemeAware {
 extension TimelineTrackView: TimelineThemeAware {
     
     public func updateTheme() {
-        let theme = TimelineTheme.current
-        backgroundColor = theme.trackBackgroundColor
-        
         // Update header view theme
         headerView.updateTheme()
         

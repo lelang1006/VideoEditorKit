@@ -121,7 +121,7 @@ final class MultiLayerTimelineViewController: UIViewController {
         updatePlayheadPosition()
         updateCarretLayerFrame()
         
-        // Apply content insets to allow full timeline scrollability
+        // Apply content insets to scrollView and TimeRulerView
         // We need enough padding so that 00:00 appears at the absolute center of the view
         // when timeline is in its default centered position
         let viewCenter = view.bounds.width / 2
@@ -130,9 +130,35 @@ final class MultiLayerTimelineViewController: UIViewController {
         let contentInset = UIEdgeInsets(top: 0, left: horizontal, bottom: 0, right: horizontal)
         
         scrollView.contentInset = contentInset
-        timeRulerView.setContentInset(contentInset) // Sync TimeRulerView contentInset
         
-
+        // FIX: TimeRulerView needs to align with TimelineItemView positioning
+        // TimelineItemView appears at screen position: horizontal + trackHeaderWidth
+        // TimeRulerView 00:00 should appear at same position
+        let rulerInset = UIEdgeInsets(
+            top: 0,
+            left: horizontal + configuration.trackHeaderWidth,  // Same total offset as TimelineItemView
+            bottom: 0,
+            right: horizontal
+        )
+        timeRulerView.setContentInset(rulerInset)
+        
+        // Debug insets
+        print("📏 DEBUG Insets:")
+        print("📏   - ViewCenter: \(viewCenter)")
+        print("📏   - TimelineStart: \(timelineStart)")
+        print("📏   - Horizontal: \(horizontal)")
+        print("📏   - TrackHeaderWidth: \(configuration.trackHeaderWidth)")
+        print("📏   - ScrollView inset: \(contentInset)")
+        print("📏   - TimeRulerView inset: \(rulerInset)")
+        print("📏   - TimelineItemView screen position: \(horizontal + configuration.trackHeaderWidth)")
+        print("📏   - TimeRulerView 00:00 screen position: \(horizontal + configuration.trackHeaderWidth)")
+        print("📏   - Both should be at ViewCenter: \(viewCenter)")
+        
+        // CRITICAL: Sync TimeRulerView scroll position with main scrollView immediately
+        // Compensate for different content insets to achieve same effective positioning
+        let compensatedOffset = scrollView.contentOffset.x - (timeRulerView.scrollView.contentInset.left - scrollView.contentInset.left)
+        print("📏 🔄 [INITIAL] sync - ScrollView offset: \(scrollView.contentOffset.x), Compensated: \(compensatedOffset)")
+        timeRulerView.setContentOffset(CGPoint(x: compensatedOffset, y: 0))
     }
     
     override func viewDidAppear(_ animated: Bool) {
@@ -359,9 +385,9 @@ extension MultiLayerTimelineViewController {
         // This allows the last second of video to be scrolled to the center of the screen
         let contentWidth = durationWidth + timelineContentWidth
         
-        // Calculate proper content height based on actual tracks
+        // Calculate proper content height based on actual tracks (without ruler)
         let tracksHeight = CGFloat(tracks.count) * configuration.trackHeight + CGFloat(max(0, tracks.count - 1)) * configuration.trackSpacing
-        let contentHeight = tracksHeight + 30 // +30 for ruler height
+        let contentHeight = tracksHeight // No +30 for ruler since it's outside
         
         // Set scroll view content size
         scrollView.contentSize = CGSize(width: contentWidth, height: contentHeight)
@@ -373,18 +399,29 @@ extension MultiLayerTimelineViewController {
         // This overrides any AutoLayout constraints that might limit the width
         contentView.frame = CGRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
         
-        // Manually position TimeRulerView and TracksStackView since contentView uses frame-based layout
+        // Debug: Print frame sizes for TimeRulerView setup
+        print("📏 DEBUG TimeRulerView Setup:")
+        print("📏   - View bounds: \(view.bounds)")
+        print("📏   - Track header width: \(configuration.trackHeaderWidth)")
+        print("📏   - Content width: \(contentWidth)")
+        
+        // Update TimeRulerView frame (fixed at top, outside scrollView) - FULL WIDTH
         timeRulerView.frame = CGRect(
-            x: configuration.trackHeaderWidth,
+            x: 0,  // Start at 0 for full width
             y: 0,
-            width: contentWidth - configuration.trackHeaderWidth,
+            width: view.bounds.width,  // Full screen width
             height: 30
         )
         
-        let tracksY: CGFloat = 30 // Below the time ruler
+        print("📏   - TimeRulerView frame: \(timeRulerView.frame)")
+        
+        // Set TimeRulerView content size to match scrollView
+        timeRulerView.setDuration(maxDuration, contentWidth: contentWidth)
+        
+        // Position TracksStackView in contentView (no Y offset since ruler is outside)
         tracksStackView.frame = CGRect(
             x: 0,
-            y: tracksY,
+            y: 0, // Start at top since ruler is outside scrollView
             width: contentWidth,
             height: tracksHeight
         )
@@ -413,17 +450,18 @@ extension MultiLayerTimelineViewController {
         let durationWidth = CGFloat(maxDuration.seconds) * configuration.pixelsPerSecond
         let contentWidth = durationWidth + timelineContentWidth // Match updateContentSize calculation exactly
         
+        // TimeRulerView setDuration method already handles content size
         timeRulerView.setDuration(maxDuration, contentWidth: contentWidth)
     }
     
     func updateCarretLayerFrame() {
         let width: CGFloat = 2.0
-        let height: CGFloat = view.bounds.height
+        // Height should start from below TimeRulerView
+        let height: CGFloat = view.bounds.height - 30 // Subtract TimeRulerView height
         
-        // Position playhead at the absolute center of the entire view
-        // This ensures both playhead and 00:00 appear at the visual center
+        // Position playhead at the absolute center of the view
         let x = (view.bounds.width / 2) - (width / 2)
-        let y: CGFloat = 0
+        let y: CGFloat = 30 // Start below TimeRulerView
         carretLayer.frame = CGRect(x: x, y: y, width: width, height: height)
     }
     
@@ -443,8 +481,11 @@ extension MultiLayerTimelineViewController {
         
         view.addSubview(scrollView)
         scrollView.addSubview(contentView)
-        contentView.addSubview(timeRulerView)
-        contentView.addSubview(tracksStackView)
+        
+        // Move TimeRulerView to main view (NOT inside scrollView)
+        view.addSubview(timeRulerView) // ← Moved outside scrollView
+        
+        contentView.addSubview(tracksStackView) // Only tracks in scrollView
         view.layer.addSublayer(carretLayer)
         
         setupConstraints()
@@ -467,14 +508,23 @@ extension MultiLayerTimelineViewController {
     }
     
     func setupConstraints() {
-        scrollView.autoPinEdgesToSuperviewEdges()
+        // Pin TimeRulerView to full width of main view (not offset)
+        timeRulerView.autoPinEdge(toSuperviewEdge: .top)
+        timeRulerView.autoPinEdge(toSuperviewEdge: .leading) // No withInset
+        timeRulerView.autoPinEdge(toSuperviewEdge: .trailing)
+        timeRulerView.autoSetDimension(.height, toSize: 30)
+        
+        // Adjust scrollView to be below TimeRulerView
+        scrollView.autoPinEdge(.top, to: .bottom, of: timeRulerView)
+        scrollView.autoPinEdge(toSuperviewEdge: .leading)
+        scrollView.autoPinEdge(toSuperviewEdge: .trailing)
+        scrollView.autoPinEdge(toSuperviewEdge: .bottom)
         
         // Don't set any constraints for contentView - we'll manage it entirely with frames
         // This prevents AutoLayout from overriding our manual contentSize settings
         contentView.translatesAutoresizingMaskIntoConstraints = true
         
-        // Also use frame-based layout for TimeRulerView and TracksStackView
-        timeRulerView.translatesAutoresizingMaskIntoConstraints = true
+        // Also use frame-based layout for TracksStackView
         tracksStackView.translatesAutoresizingMaskIntoConstraints = true
     }
     

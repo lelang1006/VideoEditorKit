@@ -94,8 +94,13 @@ class TimelineScrollHandler: NSObject {
             // Update main timeline scroll
             timelineVC.scrollView.setContentOffset(point, animated: false)
             
-            // Sync time ruler scroll position (both have same contentInset now)
-            timelineVC.timeRulerView.setContentOffset(CGPoint(x: timelineVC.scrollView.contentOffset.x, y: 0))
+            // Sync time ruler scroll position with compensation for different insets
+            // ScrollView: effective position = offset + 67.5
+            // TimeRulerView: effective position = offset + 187.5
+            // To match positions: TimeRulerView offset = ScrollView offset - (187.5 - 67.5) = ScrollView offset - 120
+            let compensatedOffset = timelineVC.scrollView.contentOffset.x - (timelineVC.timeRulerView.scrollView.contentInset.left - timelineVC.scrollView.contentInset.left)
+            print("📏 🔄 [PLAYHEAD] Syncing TimeRulerView offset: ScrollView=\(timelineVC.scrollView.contentOffset.x), Compensated=\(compensatedOffset)")
+            timelineVC.timeRulerView.setContentOffset(CGPoint(x: compensatedOffset, y: 0))
         }
     }
     
@@ -119,8 +124,10 @@ class TimelineScrollHandler: NSObject {
             // Update the scroll view's content offset
             timelineVC.scrollView.setContentOffset(targetOffset, animated: false)
             
-            // Sync time ruler scroll position
-            timelineVC.timeRulerView.setContentOffset(CGPoint(x: targetOffset.x, y: 0))
+            // Sync time ruler scroll position with compensation
+            let compensatedOffset = targetOffset.x - (timelineVC.timeRulerView.scrollView.contentInset.left - timelineVC.scrollView.contentInset.left)
+            print("📏 🔄 [AUTO-SCROLL] ScrollView offset: \(targetOffset.x), Compensated: \(compensatedOffset)")
+            timelineVC.timeRulerView.setContentOffset(CGPoint(x: compensatedOffset, y: 0))
         }
     }
     
@@ -173,8 +180,10 @@ class TimelineScrollHandler: NSObject {
     private func handleHorizontalScrolling(in scrollView: UIScrollView) {
         guard let timelineVC = timelineViewController else { return }
         
-        // Update time ruler scroll position to sync with timeline
-        timelineVC.timeRulerView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: 0))
+        // Update time ruler scroll position to sync with timeline with inset compensation
+        let compensatedOffset = scrollView.contentOffset.x - (timelineVC.timeRulerView.scrollView.contentInset.left - scrollView.contentInset.left)
+        print("📏 🔄 [SCROLL] ScrollView offset: \(scrollView.contentOffset.x), Compensated: \(compensatedOffset)")
+        timelineVC.timeRulerView.setContentOffset(CGPoint(x: compensatedOffset, y: 0))
         
         // Calculate current time based on scroll position
         if isSeeking {
